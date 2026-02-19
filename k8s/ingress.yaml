@@ -1,0 +1,84 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Nginx Ingress — ZylkerKart
+# ─────────────────────────────────────────────────────────────────────────────
+# Requires: nginx ingress controller installed in cluster
+# Add to /etc/hosts:  127.0.0.1  zylkerkart.local chaos.zylkerkart.local
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zylkerkart-ingress
+  namespace: zylkerkart
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "150m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    # ── Main Storefront ──
+    - host: zylkerkart.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: storefront
+                port:
+                  number: 80
+          - path: /api/products
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 8081
+          - path: /api/orders
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8082
+          - path: /api/cart
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8082
+          - path: /api/search
+            pathType: Prefix
+            backend:
+              service:
+                name: search-service
+                port:
+                  number: 8083
+          - path: /api/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-service
+                port:
+                  number: 8084
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8085
+
+    # ── Chaos Dashboard ──
+    - host: chaos.zylkerkart.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chaos-dashboard
+                port:
+                  number: 8086

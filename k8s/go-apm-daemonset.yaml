@@ -1,0 +1,129 @@
+# =============================================================================
+# Site24x7 Go APM Agent — eBPF-based DaemonSet
+# Monitors Go applications via kernel uprobes (requires Linux kernel ≥ 5.8)
+# =============================================================================
+
+# ── Namespace ────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    purpose: apm-monitoring
+---
+# ── ConfigMap — Monitored Go Applications ───────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apm-apps-config
+  namespace: monitoring
+data:
+  # Format: AppDisplayName=ProcessName:Port
+  go_apps: "ZylkerKart-SearchService=search-service:8083"
+---
+# ── ServiceAccount ──────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apm-agent-sa
+  namespace: monitoring
+---
+# ── ClusterRole — Required kernel/node-level access ─────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apm-agent-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+---
+# ── ClusterRoleBinding ──────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: apm-agent-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: apm-agent-sa
+    namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: apm-agent-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# ── DaemonSet — Site24x7 Go APM Exporter Agent ─────────────────────────────
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: exporter-agent
+  namespace: monitoring
+  labels:
+    app: site24x7-go-apm
+spec:
+  selector:
+    matchLabels:
+      app: site24x7-go-apm
+  template:
+    metadata:
+      labels:
+        app: site24x7-go-apm
+    spec:
+      serviceAccountName: apm-agent-sa
+      hostPID: true
+      containers:
+        - name: exporter-agent
+          image: site24x7/apminsight-goagent:latest
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          env:
+            - name: S247_LICENSE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: S247_LICENSE_KEY
+            - name: GO_APPS
+              valueFrom:
+                configMapKeyRef:
+                  name: apm-apps-config
+                  key: go_apps
+          volumeMounts:
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: debug
+              mountPath: /sys/kernel/debug
+            - name: bpf
+              mountPath: /sys/fs/bpf
+            - name: sys
+              mountPath: /sys
+            - name: apm-binaries
+              mountPath: /var/lib/apm-binaries
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+      volumes:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: debug
+          hostPath:
+            path: /sys/kernel/debug
+        - name: bpf
+          hostPath:
+            path: /sys/fs/bpf
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: apm-binaries
+          hostPath:
+            path: /var/lib/apm-binaries
+            type: DirectoryOrCreate
