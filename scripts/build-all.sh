@@ -93,7 +93,7 @@ echo ""
 
 # service-name:build-context
 SERVICES=(
-    "mysqlb:mysql"
+    "mysql:db"
     "product-service:services/product-service"
     "order-service:services/order-service"
     "search-service:services/search-service"
