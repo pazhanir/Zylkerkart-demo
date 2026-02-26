@@ -519,16 +519,32 @@ public class HomeController {
         }
     }
 
+    /**
+     * Extract data from API result, returning only Lists (safe for th:each).
+     * When a service is down, ApiGateway returns {"error": "..."} — a Map, not a List.
+     * Passing that Map to Thymeleaf's th:each iterates over Map.Entry objects,
+     * causing SpEL errors mid-render and ERR_INCOMPLETE_CHUNKED_ENCODING.
+     */
     @SuppressWarnings("unchecked")
     private Object getData(Map<String, Object> result) {
         Object data = result.get("data");
-        return data != null ? data : List.of();
+        if (data instanceof List) return data;
+        return List.of();
     }
 
+    /**
+     * Extract data as Map from API result, only on successful responses.
+     * On error (status >= 300 or service down), returns empty Map so templates
+     * get null for missing keys and degrade gracefully instead of crashing mid-render.
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> getDataMap(Map<String, Object> result) {
+        int status = safeInt(result, "status", 0);
         Object data = result.get("data");
-        return data instanceof Map ? (Map<String, Object>) data : Map.of();
+        if (status >= 200 && status < 300 && data instanceof Map) {
+            return (Map<String, Object>) data;
+        }
+        return Map.of();
     }
 
     /**
