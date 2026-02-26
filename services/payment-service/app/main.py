@@ -1,12 +1,11 @@
 import os
-import random
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import payment, chaos
+from app.routers import payment
 from app.config.database import get_pool
 
 logging.basicConfig(
@@ -28,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ZylkerKart Payment Service",
-    description="Mock payment processing with fraud scoring and chaos endpoints",
+    description="Mock payment processing with fraud scoring",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -43,26 +42,8 @@ app.add_middleware(
 )
 
 
-# Random 500 chaos middleware
-@app.middleware("http")
-async def chaos_random_500_middleware(request: Request, call_next):
-    if (
-        chaos.chaos_state.get("random_500_active")
-        and request.url.path.startswith("/payments")
-        and random.random() < 0.5
-    ):
-        logger.error(f"[CHAOS] Random 500 triggered for {request.method} {request.url.path}")
-        return Response(
-            content='{"error": "Internal Server Error", "chaos": true}',
-            status_code=500,
-            media_type="application/json",
-        )
-    return await call_next(request)
-
-
 # Routes
 app.include_router(payment.router)
-app.include_router(chaos.router)
 
 
 @app.get("/health")

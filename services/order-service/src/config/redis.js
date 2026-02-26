@@ -1,10 +1,7 @@
 const Redis = require('ioredis');
 
-// Chaos flag: when true, connects to non-existent Redis host
-let chaosRedisTimeout = false;
-
 function createRedisClient() {
-  const host = chaosRedisTimeout ? 'redis-nonexistent' : (process.env.REDIS_HOST || 'localhost');
+  const host = process.env.REDIS_HOST || 'localhost';
   const port = parseInt(process.env.REDIS_PORT || '6379');
 
   const client = new Redis({
@@ -36,21 +33,4 @@ function getRedis() {
   return redisClient;
 }
 
-function setChaosRedisTimeout(enabled) {
-  chaosRedisTimeout = enabled;
-  if (enabled) {
-    console.warn('[CHAOS] Redis timeout enabled - switching to non-existent host');
-    redisClient.disconnect();
-    redisClient = createRedisClient();
-  } else {
-    console.log('[CHAOS] Redis timeout disabled - reconnecting to real host');
-    redisClient.disconnect();
-    redisClient = createRedisClient();
-  }
-}
-
-function isChaosRedisTimeout() {
-  return chaosRedisTimeout;
-}
-
-module.exports = { getRedis, setChaosRedisTimeout, isChaosRedisTimeout };
+module.exports = { getRedis };

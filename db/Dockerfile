@@ -1,26 +1,20 @@
-FROM mysql:8.0
+# ── Stage 1: Generate SQL seed from CSV using Python ─────────
+FROM python:3.11-slim AS seed-builder
 
-# Install Python for seed script
-RUN microdnf install -y python3 python3-pip && \
-    pip3 install mysql-connector-python==8.2.0 && \
-    microdnf clean all
+WORKDIR /build
+
+# Copy CSV and seed generator script
+COPY product_datasets.csv .
+COPY seed/generate_seed_sql.py .
+
+# Generate the SQL insert file from CSV
+RUN python generate_seed_sql.py product_datasets.csv /build/02-seed.sql
+
+# ── Stage 2: Final MySQL image (no Python) ───────────────────
+FROM mysql:8.0
 
 # Copy schema SQL (runs first alphabetically)
 COPY 01-schema.sql /docker-entrypoint-initdb.d/01-schema.sql
 
-# Copy seed script and CSV
-RUN mkdir -p /seed
-COPY seed/seed_loader.py /seed/seed_loader.py
-COPY 02-seed.sh /docker-entrypoint-initdb.d/02-seed.sh
-
-# Copy CSV data file
-COPY product_datasets.csv /docker-entrypoint-initdb.d/product_datasets.csv
-
-# Make shell script executable
-RUN chmod +x /docker-entrypoint-initdb.d/02-seed.sh
-
-# Set environment for seed script
-ENV CSV_FILE=/docker-entrypoint-initdb.d/product_datasets.csv
-ENV SEED_MYSQL_HOST=localhost
-ENV SEED_MYSQL_PORT=3306
-ENV SEED_MYSQL_USER=root
+# Copy generated seed SQL from builder
+COPY --from=seed-builder /build/02-seed.sql /docker-entrypoint-initdb.d/02-seed.sql

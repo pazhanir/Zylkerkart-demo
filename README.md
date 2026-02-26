@@ -161,7 +161,6 @@ ZylkerKart simulates a real-world e-commerce platform where customers can browse
 | `GET` | `/products` | Paginated product listing (params: `category`, `subcategory`, `search`, `page`, `size`, `sort`) |
 | `GET` | `/products/categories` | List all category groups with subcategories |
 | `GET` | `/products/{id}` | Get single product detail |
-| `GET` | `/products/inefficient` | N+1 query chaos endpoint |
 | `GET` | `/health` | Health check |
 
 ### Order Service — `:8082`
@@ -247,8 +246,8 @@ docker compose up --build
 #### With Site24x7 APM Monitoring
 
 ```bash
-S247_APM_ENABLED=true S247_LICENSE_KEY=<your_key> docker compose up --build
-```
+S247_APM_ENABLED=true S247_LICENSE_KEY=<your_key> docker compose --profile apm up --build -d
+``
 
 Or create a `.env` file:
 

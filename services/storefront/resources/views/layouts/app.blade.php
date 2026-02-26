@@ -465,7 +465,7 @@
                 <h4>Contact Us</h4>
                 <p>📧 support@zylkerkart.com</p>
                 <p>📞 +1 202-918-2132</p>
-                <p style="margin-top:12px; font-size:11px; opacity:0.5;">Chaos Engineering Demo Platform<br>for Site24x7</p>
+                <p style="margin-top:12px; font-size:11px; opacity:0.5;">E-Commerce Demo Platform<br>for Site24x7</p>
             </div>
             <div>
                 <h4>Popular Categories</h4>

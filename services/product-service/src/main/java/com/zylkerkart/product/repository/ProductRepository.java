@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -30,14 +29,4 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p WHERE LOWER(p.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "OR LOWER(p.productDescription) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     Page<Product> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
-
-    @Query(value = "SELECT SLEEP(:seconds)", nativeQuery = true)
-    Integer simulateSlowQuery(@Param("seconds") int seconds);
-
-    @Query("SELECT p.productId FROM Product p")
-    List<Long> findAllProductIds();
-
-    @Query(value = "SELECT p.* FROM products p FORCE INDEX (PRIMARY) WHERE p.seller_name LIKE CONCAT('%', :name, '%')",
-           nativeQuery = true)
-    List<Product> searchBySellerNameFullScan(@Param("name") String name);
 }

@@ -9,25 +9,15 @@ namespace ZylkerKart.AuthService.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    private readonly ChaosService _chaos;
 
-    public AuthController(IAuthService authService, ChaosService chaos)
+    public AuthController(IAuthService authService)
     {
         _authService = authService;
-        _chaos = chaos;
     }
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        // Chaos: network latency
-        if (_chaos.IsNetworkLatencyActive)
-            await Task.Delay(_chaos.NetworkLatencyMs);
-
-        // Chaos: exception storm
-        if (_chaos.IsExceptionStormActive && Random.Shared.NextDouble() < 0.6)
-            throw new Exception("[CHAOS] Exception storm - random unhandled exception!");
-
         try
         {
             var result = await _authService.Register(request);
@@ -42,14 +32,6 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        // Chaos: network latency
-        if (_chaos.IsNetworkLatencyActive)
-            await Task.Delay(_chaos.NetworkLatencyMs);
-
-        // Chaos: exception storm
-        if (_chaos.IsExceptionStormActive && Random.Shared.NextDouble() < 0.6)
-            throw new Exception("[CHAOS] Exception storm - random unhandled exception!");
-
         try
         {
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();

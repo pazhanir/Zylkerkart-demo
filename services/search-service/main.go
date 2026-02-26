@@ -70,19 +70,6 @@ func main() {
 		search.POST("/log", handlers.LogSearch)
 	}
 
-	// ─── Chaos Simulation Routes ────────────────────────────
-	simulate := r.Group("/simulate")
-	{
-		simulate.POST("/deadlock", handlers.SimulateDeadlock)
-		simulate.POST("/lock-timeout", handlers.SimulateLockTimeout)
-		simulate.POST("/temp-tables", handlers.SimulateTempTables)
-		simulate.POST("/fd-exhaust", handlers.SimulateFDExhaustion)
-		simulate.POST("/fd-exhaust/stop", handlers.StopFDExhaustion)
-		simulate.POST("/goroutine-leak", handlers.SimulateGoroutineLeak)
-		simulate.POST("/goroutine-leak/stop", handlers.StopGoroutineLeak)
-		simulate.GET("/status", handlers.GetChaosStatus)
-	}
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8083"

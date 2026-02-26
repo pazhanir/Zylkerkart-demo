@@ -41,7 +41,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // ─── Services ───────────────────────────────────────────────
 builder.Services.AddScoped<IAuthService, AuthServiceImpl>();
 builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddSingleton<ChaosService>();
 
 builder.Services.AddControllers();
 builder.Services.AddCors(options =>

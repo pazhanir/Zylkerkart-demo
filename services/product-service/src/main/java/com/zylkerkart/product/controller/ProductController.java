@@ -52,12 +52,4 @@ public class ProductController {
         }
         return ResponseEntity.ok(product);
     }
-
-    /**
-     * CHAOS: GET /products/inefficient - N+1 Query Problem
-     */
-    @GetMapping("/inefficient")
-    public ResponseEntity<List<ProductDTO>> getProductsInefficient() {
-        return ResponseEntity.ok(productService.getProductsInefficient());
-    }
 }

@@ -6,8 +6,6 @@ const compression = require('compression');
 
 const cartRoutes = require('./routes/cart');
 const orderRoutes = require('./routes/order');
-const chaosRoutes = require('./routes/chaos');
-const { chaosFlags } = require('./routes/chaos');
 const db = require('./config/db');
 const redis = require('./config/redis');
 
@@ -22,21 +20,9 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// ─── Queue Backup Chaos Middleware ──────────────────────────
-// If queue-backup chaos is active, delay every request by 10s
-app.use((req, res, next) => {
-  if (chaosFlags.queueBackupActive && req.path.startsWith('/orders')) {
-    console.warn(`[CHAOS] Queue backup delay applied to ${req.method} ${req.path}`);
-    setTimeout(next, 10000);
-  } else {
-    next();
-  }
-});
-
 // ─── Routes ─────────────────────────────────────────────────
 app.use('/cart', cartRoutes);
 app.use('/orders', orderRoutes);
-app.use('/simulate', chaosRoutes);
 
 // ─── Health Check ───────────────────────────────────────────
 app.get('/health', async (req, res) => {

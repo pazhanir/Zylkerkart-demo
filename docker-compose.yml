@@ -1,7 +1,7 @@
 version: "3.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ZylkerKart — Polyglot Microservices E-Commerce + Chaos Engineering Platform
+# ZylkerKart — Polyglot Microservices E-Commerce Platform
 # ─────────────────────────────────────────────────────────────────────────────
 # Services:
 #   8080  Storefront    (Java 17 / Spring Boot 3.2)
@@ -10,7 +10,6 @@ version: "3.9"
 #   8083  Search        (Go 1.21 / Gin)
 #   8084  Payment       (Python 3.11 / FastAPI)
 #   8085  Auth          (C# / .NET 8)
-#   8086  Chaos Dash    (Python 3.11 / Flask)
 #   3306  MySQL 8.0
 #   6379  Redis 7.0
 # ─────────────────────────────────────────────────────────────────────────────

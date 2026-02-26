@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\ChaosController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,13 +55,4 @@ Route::get('/health', function () {
         'status'    => 'UP',
         'timestamp' => now()->toISOString(),
     ]);
-});
-
-// Chaos simulation routes
-Route::prefix('simulate')->group(function () {
-    Route::post('/oom', [ChaosController::class, 'simulateOOM']);
-    Route::post('/dns-failure', [ChaosController::class, 'simulateDNSFailure']);
-    Route::post('/infinite-retry', [ChaosController::class, 'simulateInfiniteRetry']);
-    Route::post('/ssl-error', [ChaosController::class, 'simulateSSLError']);
-    Route::get('/status', [ChaosController::class, 'status']);
 });
