@@ -82,10 +82,19 @@ public class HomeController {
                 "category", category, "search", search, "sort", sort
         );
 
-        model.addAttribute("products", getDataMap(products));
+        Map<String, Object> productData = getDataMap(products);
+        model.addAttribute("products", productData);
         model.addAttribute("categories", getData(categories));
         model.addAttribute("filters", filters);
         model.addAttribute("title", "Products - ZylkerKart");
+
+        // Pre-compute pagination values in Java to avoid Thymeleaf SpEL type issues
+        int totalPages = safeInt(productData, "totalPages", 0);
+        int currentPage = 0;
+        try { currentPage = Integer.parseInt(page); } catch (NumberFormatException ignored) {}
+        model.addAttribute("totalPages", totalPages);
+        model.addAttribute("currentPage", currentPage);
+
         addSessionAttributes(model, session);
         return "pages/products";
     }

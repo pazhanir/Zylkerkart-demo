@@ -151,7 +151,7 @@ public class ProductService {
         dto.setRatingsCount(p.getRatingsCount());
         dto.setInitialPrice(p.getInitialPrice());
         dto.setDiscount(p.getDiscount());
-        dto.setFinalPrice(p.getFinalPrice());
+        dto.setFinalPrice(computeFinalPrice(p));
         dto.setCurrency(p.getCurrency());
         dto.setDeliveryOptions(p.getDeliveryOptions());
         dto.setProductDetails(p.getProductDetails());
@@ -208,7 +208,7 @@ public class ProductService {
         dto.setRatingsCount(p.getRatingsCount());
         dto.setInitialPrice(p.getInitialPrice());
         dto.setDiscount(p.getDiscount());
-        dto.setFinalPrice(p.getFinalPrice());
+        dto.setFinalPrice(computeFinalPrice(p));
         dto.setCurrency(p.getCurrency());
 
         if (p.getSubcategory() != null) {
@@ -232,6 +232,28 @@ public class ProductService {
         }
 
         return dto;
+    }
+
+    /**
+     * Compute the correct finalPrice from initialPrice and discount.
+     * The seed data has many products where finalPrice == initialPrice despite having discounts.
+     * Formula: finalPrice = initialPrice * (1 - discount/100), formatted as "$X".
+     * Falls back to the stored value if initialPrice or discount is unavailable.
+     */
+    private String computeFinalPrice(Product p) {
+        if (p.getInitialPrice() != null && p.getDiscount() != null && p.getDiscount() > 0) {
+            long computed = Math.round(p.getInitialPrice() * (1.0 - p.getDiscount() / 100.0));
+            return "$" + computed;
+        }
+        // No discount or missing data — fall back to stored value
+        if (p.getFinalPrice() != null) {
+            return p.getFinalPrice();
+        }
+        // Last resort — use initialPrice
+        if (p.getInitialPrice() != null) {
+            return "$" + p.getInitialPrice();
+        }
+        return "$0";
     }
 
     private Pageable createPageable(int page, int size, String sort) {

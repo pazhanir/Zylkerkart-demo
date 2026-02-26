@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zylkerkart-config
+  namespace: zylkerkart
+data:
+  MYSQL_ROOT_PASSWORD: "ZylkerKart@2024"
+  DB_HOST: "mysql"
+  DB_PORT: "3306"
+  DB_USER: "root"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  JWT_SECRET: "ZylkerKart-Super-Secret-JWT-Key-2024-Must-Be-At-Least-32-Chars"
+  JWT_EXPIRY_MINUTES: "15"
+  JWT_REFRESH_EXPIRY_DAYS: "7"
+  PRODUCT_SERVICE_URL: "http://product-service:8081"
+  ORDER_SERVICE_URL: "http://order-service:8082"
+  SEARCH_SERVICE_URL: "http://search-service:8083"
+  PAYMENT_SERVICE_URL: "http://payment-service:8084"
+  AUTH_SERVICE_URL: "http://auth-service:8085"

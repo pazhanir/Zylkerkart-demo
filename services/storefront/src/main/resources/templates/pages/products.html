@@ -33,7 +33,7 @@
     </div>
 
     <!-- Pagination -->
-    <th:block th:if="${products['totalPages'] != null and products['totalPages'] > 1}">
+    <th:block th:if="${totalPages > 1}">
         <style>
             .pagination-wrap { text-align: center; margin: 30px 0; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; }
             .pagination-link { display: inline-block; padding: 8px 14px; border-radius: 4px; text-decoration: none; min-width: 40px; text-align: center; }
@@ -44,10 +44,10 @@
             }
         </style>
         <div class="pagination-wrap">
-            <th:block th:each="i : ${#numbers.sequence(0, products['totalPages'] - 1)}">
+            <th:block th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
                 <a th:href="'/products?page=' + ${i} + '&amp;category=' + ${filters['category'] ?: ''} + '&amp;search=' + ${filters['search'] ?: ''}"
                    class="pagination-link"
-                   th:classappend="${i == T(Integer).parseInt(filters['page'] ?: '0') ? 'pagination-link--active' : 'pagination-link--inactive'}"
+                   th:classappend="${i == currentPage ? 'pagination-link--active' : 'pagination-link--inactive'}"
                    th:text="${i + 1}">1</a>
             </th:block>
         </div>
