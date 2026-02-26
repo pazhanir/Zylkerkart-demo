@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Storefront BFF — Java 17 / Spring Boot 3.2 (port 80)
+# With Site24x7 APM Insight Java agent via InitContainers
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storefront
+  namespace: zylkerkart
+  labels:
+    app: storefront
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storefront
+  template:
+    metadata:
+      labels:
+        app: storefront
+        tier: frontend
+    spec:
+      # ── Shared volume for APM agent binaries ──
+      volumes:
+        - name: s247agent
+          emptyDir: {}
+
+      # ── Init Container: download & extract Java APM agent ──
+      initContainers:
+        - name: s247-java-agent
+          image: site24x7/apminsight-javaagent:latest
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'cp -r /opt/site24x7/. /home/apm && chmod -R 755 /home/apm']
+          volumeMounts:
+            - name: s247agent
+              mountPath: /home/apm
+
+      containers:
+        - name: storefront
+          image: zylkerkart/storefront:latest
+          ports:
+            - containerPort: 80
+
+          volumeMounts:
+            - name: s247agent
+              mountPath: /home/apm
+
+          env:
+            # ── Site24x7 Java APM Config ──
+            - name: JAVA_TOOL_OPTIONS
+              value: "-javaagent:/home/apm/apminsight-javaagent.jar -Dapminsight.application.name=ZylkerKart-Storefront"
+            - name: S247_LICENSE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: S247_LICENSE_KEY
+            # ── Redis Config ──
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: REDIS_PORT
+            # ── Service URLs ──
+            - name: PRODUCT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: PRODUCT_SERVICE_URL
+            - name: ORDER_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: ORDER_SERVICE_URL
+            - name: SEARCH_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: SEARCH_SERVICE_URL
+            - name: PAYMENT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: PAYMENT_SERVICE_URL
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: AUTH_SERVICE_URL
+
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "400m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storefront
+  namespace: zylkerkart
+spec:
+  selector:
+    app: storefront
+  ports:
+    - port: 80
+      targetPort: 80

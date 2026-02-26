@@ -18,6 +18,5 @@ data:
   SEARCH_SERVICE_URL: "http://search-service:8083"
   PAYMENT_SERVICE_URL: "http://payment-service:8084"
   AUTH_SERVICE_URL: "http://auth-service:8085"
-  STOREFRONT_URL: "http://storefront:80"
   # ── Site24x7 APM Monitoring ──
   S247_LICENSE_KEY: "<your-site24x7-license-key>"

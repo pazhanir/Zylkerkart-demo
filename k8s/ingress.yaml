@@ -2,7 +2,7 @@
 # Nginx Ingress — ZylkerKart
 # ─────────────────────────────────────────────────────────────────────────────
 # Requires: nginx ingress controller installed in cluster
-# Add to /etc/hosts:  127.0.0.1  zylkerkart.local chaos.zylkerkart.local
+# Add to /etc/hosts:  127.0.0.1  zylkerkart.local
 # ─────────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -70,15 +70,3 @@ spec:
                 name: auth-service
                 port:
                   number: 8085
-
-    # ── Chaos Dashboard ──
-    - host: chaos.zylkerkart.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: chaos-dashboard
-                port:
-                  number: 8086

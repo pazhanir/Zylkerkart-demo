@@ -4,7 +4,7 @@ version: "3.9"
 # ZylkerKart — Polyglot Microservices E-Commerce + Chaos Engineering Platform
 # ─────────────────────────────────────────────────────────────────────────────
 # Services:
-#   8080  Storefront    (PHP 8.2 / Laravel 10)
+#   8080  Storefront    (Java 17 / Spring Boot 3.2)
 #   8081  Product       (Java 17 / Spring Boot)
 #   8082  Order         (Node.js 18 / Express)
 #   8083  Search        (Go 1.21 / Gin)
@@ -77,6 +77,7 @@ services:
       context: ./services/product-service
       dockerfile: Dockerfile
     container_name: zylkerkart-product
+    user: "0:0"
     ports:
       - "8081:8081"
     environment:
@@ -91,11 +92,11 @@ services:
     entrypoint: ["/bin/sh", "-c", "
       if [ \"$$S247_APM_ENABLED\" = \"true\" ]; then
         echo '[Site24x7] APM enabled for Product Service (Java)';
-        if [ ! -f /opt/s247-agent/apminsight-javaagent/apminsight-javaagent.jar ]; then
+        if [ ! -f /opt/s247-agent/apminsight-javaagent.jar ]; then
           echo '[Site24x7] Downloading Java agent...';
           apt-get update -qq && apt-get install -y -qq wget unzip > /dev/null 2>&1;
           mkdir -p /opt/s247-agent;
-          wget -q -O /opt/s247-agent/apminsight-javaagent.zip https://staticdownloads.site24x7.com/apminsight/apminsight-javaagent.zip;
+          wget -q -O /opt/s247-agent/apminsight-javaagent.zip https://staticdownloads.site24x7.in/apminsight/agents/apminsight-javaagent.zip;
           unzip -o -q /opt/s247-agent/apminsight-javaagent.zip -d /opt/s247-agent/;
           rm -f /opt/s247-agent/apminsight-javaagent.zip;
           echo '[Site24x7] Java agent installed.';
@@ -103,7 +104,7 @@ services:
           echo '[Site24x7] Java agent already cached.';
         fi;
         exec java -Xms256m -Xmx512m
-          -javaagent:/opt/s247-agent/apminsight-javaagent/apminsight-javaagent.jar
+          -javaagent:/opt/s247-agent/apminsight-javaagent.jar
           -Dapminsight.license.key=$$S247_LICENSE_KEY
           -Dapminsight.application.name=ZylkerKart-Product
           -jar app.jar;
@@ -135,6 +136,7 @@ services:
       context: ./services/order-service
       dockerfile: Dockerfile
     container_name: zylkerkart-order
+    user: "0:0"
     ports:
       - "8082:8082"
     environment:
@@ -196,8 +198,6 @@ services:
       DB_NAME: db_search
       REDIS_HOST: redis
       REDIS_PORT: 6379
-    volumes:
-      - s247_go_binary:/app
     depends_on:
       mysql:
         condition: service_healthy
@@ -220,6 +220,7 @@ services:
       context: ./services/payment-service
       dockerfile: Dockerfile
     container_name: zylkerkart-payment
+    user: "0:0"
     ports:
       - "8084:8084"
     environment:
@@ -273,10 +274,12 @@ services:
   # 5. Auth Service — C# / .NET 8 (port 8085)
   #    APM: Site24x7 .NET Core Agent (CLR Profiler)
   auth-service:
+    platform: linux/amd64
     build:
       context: ./services/auth-service
       dockerfile: Dockerfile
     container_name: zylkerkart-auth
+    user: "0:0"
     ports:
       - "8085:8085"
     environment:
@@ -295,9 +298,9 @@ services:
     entrypoint: ["/bin/sh", "-c", "
       if [ \"$$S247_APM_ENABLED\" = \"true\" ]; then
         echo '[Site24x7] APM enabled for Auth Service (.NET)';
-        if [ ! -f /opt/apminsight/dotnet/ApmInsightDotNetCoreAgent/x64/libClrProfilerAgent.so ]; then
+        if [ ! -f /opt/apminsight/dotnet/ApmInsightDotNetCoreAgent/DotNetCoreAgent/apminsight.conf ]; then
           echo '[Site24x7] Downloading .NET agent...';
-          apt-get update -qq && apt-get install -y -qq wget ca-certificates unzip > /dev/null 2>&1;
+          apt-get update -qq && apt-get install -y -qq wget ca-certificates unzip xxd sed > /dev/null 2>&1;
           wget -q -O /tmp/apminsight-dotnetcoreagent-linux.sh https://staticdownloads.site24x7.com/apminsight/agents/dotnet/apminsight-dotnetcoreagent-linux.sh;
           chmod +x /tmp/apminsight-dotnetcoreagent-linux.sh;
           /tmp/apminsight-dotnetcoreagent-linux.sh -Destination /opt/apminsight/dotnet -LicenseKey $$S247_LICENSE_KEY;
@@ -306,6 +309,9 @@ services:
         else
           echo '[Site24x7] .NET agent already cached.';
         fi;
+        CONF=/opt/apminsight/dotnet/ApmInsightDotNetCoreAgent/DotNetCoreAgent/apminsight.conf;
+        sed -i 's/^application.name=.*/application.name=ZylkerKart-Auth/' $$CONF;
+        echo '[Site24x7] Config updated: application.name=ZylkerKart-Auth';
         export CORECLR_ENABLE_PROFILING=1;
         export CORECLR_PROFILER='{9D363A5F-ED5F-4AAC-B456-75AFFA6AA0C8}';
         export CORECLR_SITE24X7_HOME=/opt/apminsight/dotnet/ApmInsightDotNetCoreAgent;
@@ -333,108 +339,68 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  # 6. Storefront BFF — PHP 8.2 / Laravel 10 (port 8080)
-  #    APM: Site24x7 PHP Agent + S247DataExporter
+  # 6. Storefront BFF — Java 17 / Spring Boot 3.2 (port 8080)
+  #    APM: Site24x7 Java Agent (-javaagent)
   storefront:
     build:
       context: ./services/storefront
       dockerfile: Dockerfile
     container_name: zylkerkart-storefront
+    user: "0:0"
     ports:
       - "8080:80"
     environment:
-      APP_NAME: ZylkerKart
-      APP_ENV: production
-      APP_DEBUG: "true"
-      APP_URL: http://localhost:8080
       PRODUCT_SERVICE_URL: http://product-service:8081
       ORDER_SERVICE_URL: http://order-service:8082
       SEARCH_SERVICE_URL: http://search-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8084
       AUTH_SERVICE_URL: http://auth-service:8085
-      SITE24X7_RUM_KEY: ${SITE24X7_RUM_KEY:-}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       S247_APM_ENABLED: ${S247_APM_ENABLED:-false}
       S247_LICENSE_KEY: ${S247_LICENSE_KEY:-}
-    command: ["/bin/sh", "-c", "
+    entrypoint: ["/bin/sh", "-c", "
       if [ \"$$S247_APM_ENABLED\" = \"true\" ]; then
-        echo '[Site24x7] APM enabled for Storefront (PHP)';
-        if [ ! -f /opt/S247DataExporter/bin/service.sh ]; then
-          echo '[Site24x7] Installing PHP agent and S247DataExporter...';
-          apt-get update -qq && apt-get install -y -qq wget procps > /dev/null 2>&1;
-          wget -q -O /tmp/InstallAgentPHP.sh https://staticdownloads.site24x7.com/apminsight/agents/AgentPHP/linux/InstallAgentPHP.sh;
-          sh /tmp/InstallAgentPHP.sh -lk $$S247_LICENSE_KEY -zpa.application_name ZylkerKart-Storefront;
-          rm -f /tmp/InstallAgentPHP.sh;
-          wget -q -O /tmp/InstallDataExporter.sh https://staticdownloads.site24x7.com/apminsight/S247DataExporter/linux/InstallDataExporter.sh;
-          sh /tmp/InstallDataExporter.sh -root -nsvc -lk $$S247_LICENSE_KEY;
-          rm -f /tmp/InstallDataExporter.sh;
-          echo '[Site24x7] PHP agent and S247DataExporter installed.';
+        echo '[Site24x7] APM enabled for Storefront (Java)';
+        if [ ! -f /opt/s247-agent/apminsight-javaagent.jar ]; then
+          echo '[Site24x7] Downloading Java agent...';
+          apt-get update -qq && apt-get install -y -qq wget unzip > /dev/null 2>&1;
+          mkdir -p /opt/s247-agent;
+          wget -q -O /opt/s247-agent/apminsight-javaagent.zip https://staticdownloads.site24x7.in/apminsight/agents/apminsight-javaagent.zip;
+          unzip -o -q /opt/s247-agent/apminsight-javaagent.zip -d /opt/s247-agent/;
+          rm -f /opt/s247-agent/apminsight-javaagent.zip;
+          echo '[Site24x7] Java agent installed.';
         else
-          echo '[Site24x7] PHP agent already cached.';
+          echo '[Site24x7] Java agent already cached.';
         fi;
-        /opt/S247DataExporter/bin/service.sh start;
-        exec apache2-foreground;
+        exec java -Xms256m -Xmx512m
+          -javaagent:/opt/s247-agent/apminsight-javaagent.jar
+          -Dapminsight.license.key=$$S247_LICENSE_KEY
+          -Dapminsight.application.name=ZylkerKart-Storefront
+          -jar app.jar;
       else
-        exec apache2-foreground;
+        exec java -Xms256m -Xmx512m -jar app.jar;
       fi
     "]
     volumes:
-      - s247_php_agent:/opt/S247DataExporter
+      - s247_java_storefront:/opt/s247-agent
     depends_on:
       - product-service
       - order-service
       - search-service
       - payment-service
       - auth-service
+      - redis
     networks:
       - zylkerkart-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 45s
     restart: unless-stopped
 
-  # 7. Chaos Dashboard — Python 3.11 / Flask 3 (port 8086)
-  chaos-dashboard:
-    build:
-      context: ./services/chaos-dashboard
-      dockerfile: Dockerfile
-    container_name: zylkerkart-chaos
-    ports:
-      - "8086:8086"
-    environment:
-      PORT: 8086
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      PRODUCT_SERVICE_URL: http://product-service:8081
-      ORDER_SERVICE_URL: http://order-service:8082
-      SEARCH_SERVICE_URL: http://search-service:8083
-      PAYMENT_SERVICE_URL: http://payment-service:8084
-      AUTH_SERVICE_URL: http://auth-service:8085
-      STOREFRONT_URL: http://storefront:80
-    depends_on:
-      redis:
-        condition: service_healthy
-      product-service:
-        condition: service_started
-      order-service:
-        condition: service_started
-      search-service:
-        condition: service_started
-      payment-service:
-        condition: service_started
-      auth-service:
-        condition: service_started
-    networks:
-      - zylkerkart-network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8086/health')"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
 
   # ── Site24x7 APM Sidecar ─────────────────────────────────────────────────
 
@@ -445,27 +411,15 @@ services:
     container_name: zylkerkart-s247-go-apm
     privileged: true
     pid: host
+    network_mode: "service:search-service"
     environment:
-      S247_APM_ENABLED: ${S247_APM_ENABLED:-false}
       S247_LICENSE_KEY: ${S247_LICENSE_KEY:-}
       GO_APPS: "ZylkerKart-Search=search-service:8083"
-    entrypoint: ["/bin/sh", "-c", "
-      if [ \"$$S247_APM_ENABLED\" = \"true\" ]; then
-        echo '[Site24x7] Go APM eBPF sidecar starting...';
-        exec /opt/apminsight-go-agent/bin/apminsight-goagent;
-      else
-        echo '[Site24x7] APM disabled — Go sidecar exiting.';
-        exit 0;
-      fi
-    "]
-    volumes:
-      - /proc:/host/proc:ro
-      - s247_go_binary:/app_runtime/search:ro
+    profiles:
+      - apm
     depends_on:
       search-service:
         condition: service_started
-    networks:
-      - zylkerkart-network
     restart: unless-stopped
 
 # ── Volumes ────────────────────────────────────────────────────────────────
@@ -477,13 +431,11 @@ volumes:
   # Site24x7 APM agent cache volumes (persist across restarts)
   s247_java_agent:
     driver: local
-  s247_go_binary:
-    driver: local
   s247_python_payment:
     driver: local
   s247_dotnet_agent:
     driver: local
-  s247_php_agent:
+  s247_java_storefront:
     driver: local
 
 # ── Networks ───────────────────────────────────────────────────────────────

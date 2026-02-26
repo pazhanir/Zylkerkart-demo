@@ -1,0 +1,485 @@
+package com.zylkerkart.storefront.controller;
+
+import com.zylkerkart.storefront.service.ApiGateway;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.zip.CRC32;
+
+@Controller
+public class HomeController {
+
+    private final ApiGateway api;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public HomeController(ApiGateway api) {
+        this.api = api;
+    }
+
+    // ─── Page Routes ──────────────────────────────────────────────────────
+
+    /**
+     * Landing page — Featured products + categories + more products.
+     */
+    @GetMapping("/")
+    public String index(Model model, HttpSession session) {
+        // Use current date+hour as seed so "Top Products" rotates every hour
+        String hourKey = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HH"));
+        CRC32 crc = new CRC32();
+        crc.update(hourKey.getBytes());
+        long hourlySeed = crc.getValue();
+        int topPage = (int) (Math.abs(hourlySeed) % 90);
+        int morePage = (int) (Math.abs(hourlySeed + 1) % 90);
+
+        Map<String, Object> products = api.get("product", "/products",
+                Map.of("size", "10", "page", String.valueOf(topPage)));
+        Map<String, Object> categories = api.get("product", "/products/categories");
+        Map<String, Object> moreProducts = api.get("product", "/products",
+                Map.of("size", "10", "page", String.valueOf(morePage)));
+
+        model.addAttribute("products", getList(products, "products"));
+        model.addAttribute("moreProducts", getList(moreProducts, "products"));
+        model.addAttribute("categories", getData(categories));
+        model.addAttribute("title", "ZylkerKart - Shop the Best Deals");
+        addSessionAttributes(model, session);
+        return "pages/home";
+    }
+
+    /**
+     * Product listing with filters.
+     */
+    @GetMapping("/products")
+    public String products(
+            @RequestParam(defaultValue = "0") String page,
+            @RequestParam(defaultValue = "20") String size,
+            @RequestParam(defaultValue = "") String category,
+            @RequestParam(defaultValue = "") String search,
+            @RequestParam(defaultValue = "") String sort,
+            Model model, HttpSession session) {
+
+        Map<String, String> query = new LinkedHashMap<>();
+        query.put("page", page);
+        query.put("size", size);
+        if (!category.isEmpty()) query.put("category", category);
+        if (!search.isEmpty()) query.put("search", search);
+        if (!sort.isEmpty()) query.put("sort", sort);
+
+        Map<String, Object> products = api.get("product", "/products", query);
+        Map<String, Object> categories = api.get("product", "/products/categories");
+
+        Map<String, String> filters = Map.of(
+                "page", page, "size", size,
+                "category", category, "search", search, "sort", sort
+        );
+
+        model.addAttribute("products", getDataMap(products));
+        model.addAttribute("categories", getData(categories));
+        model.addAttribute("filters", filters);
+        model.addAttribute("title", "Products - ZylkerKart");
+        addSessionAttributes(model, session);
+        return "pages/products";
+    }
+
+    /**
+     * Single product detail page.
+     */
+    @GetMapping("/products/{id}")
+    public String productDetail(@PathVariable int id, Model model, HttpSession session) {
+        Map<String, Object> product = api.get("product", "/products/" + id);
+
+        if ((int) product.get("status") != 200) {
+            return "error/404";
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) product.get("data");
+        String title = (data != null ? data.getOrDefault("title", "Product") : "Product")
+                + " - " + (data != null ? data.getOrDefault("productDescription", "ZylkerKart") : "ZylkerKart");
+
+        parseJsonStringFields(data);
+        model.addAttribute("product", data);
+        model.addAttribute("title", title);
+        addSessionAttributes(model, session);
+        return "pages/product-detail";
+    }
+
+    /**
+     * Cart page.
+     */
+    @GetMapping("/cart")
+    public String cart(Model model, HttpSession session) {
+        String sessionId = session.getId();
+        Map<String, Object> cart = api.get("order", "/cart/" + sessionId);
+
+        model.addAttribute("cart", getDataMap(cart));
+        model.addAttribute("title", "Cart - ZylkerKart");
+        addSessionAttributes(model, session);
+        return "pages/cart";
+    }
+
+    /**
+     * Checkout page.
+     */
+    @GetMapping("/checkout")
+    public String checkout(Model model, HttpSession session) {
+        if (session.getAttribute("auth_token") == null) {
+            session.setAttribute("redirect", "/checkout");
+            return "redirect:/login";
+        }
+
+        String sessionId = session.getId();
+        Map<String, Object> cart = api.get("order", "/cart/" + sessionId);
+
+        model.addAttribute("cart", getDataMap(cart));
+        model.addAttribute("title", "Checkout - ZylkerKart");
+        addSessionAttributes(model, session);
+        return "pages/checkout";
+    }
+
+    /**
+     * POST /checkout — Place an order (accepts JSON from frontend JS).
+     */
+    @PostMapping("/checkout")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> placeOrder(
+            @RequestBody Map<String, Object> payload,
+            HttpSession session) {
+
+        String token = (String) session.getAttribute("auth_token");
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "message", "Not authenticated"));
+        }
+
+        String sessionId = session.getId();
+
+        // Extract fields sent by the checkout JS
+        String fullName = (String) payload.getOrDefault("fullName", "");
+        String phone = (String) payload.getOrDefault("phone", "");
+        String address = (String) payload.getOrDefault("address", "");
+        String email = (String) payload.getOrDefault("email", "");
+        String paymentMethod = (String) payload.getOrDefault("paymentMethod", "cod");
+
+        // Get user from session for email fallback and userId
+        @SuppressWarnings("unchecked")
+        Map<String, Object> user = (Map<String, Object>) session.getAttribute("user");
+
+        // Fall back to session user email if not provided
+        if (email.isEmpty()) {
+            email = user != null ? (String) user.getOrDefault("email", "") : "";
+        }
+
+        // Get userId from session user
+        Object userId = user != null ? user.get("id") : null;
+
+        Map<String, Object> customer = new HashMap<>();
+        customer.put("name", fullName);
+        customer.put("email", email);
+        customer.put("phone", phone);
+        customer.put("address", address);
+        customer.put("paymentMethod", paymentMethod);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("sessionId", sessionId);
+        body.put("customer", customer);
+        if (userId != null) {
+            body.put("userId", userId);
+        }
+
+        Map<String, Object> order = api.post("order", "/orders", body, token);
+        int status = (int) order.get("status");
+
+        if (status >= 200 && status < 300) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("message", "Order placed successfully!");
+            result.put("order", order.get("data"));
+            return ResponseEntity.ok(result);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> errorData = (Map<String, Object>) order.get("data");
+        String errorMsg = errorData != null
+                ? (String) errorData.getOrDefault("error", "Payment failed. Please try again.")
+                : "Payment failed. Please try again.";
+
+        return ResponseEntity.status(status >= 400 ? status : 422)
+                .body(Map.of("success", false, "message", errorMsg));
+    }
+
+    /**
+     * Order history page.
+     */
+    @GetMapping("/orders")
+    public String orderHistory(Model model, HttpSession session) {
+        if (session.getAttribute("auth_token") == null) {
+            session.setAttribute("redirect", "/orders");
+            return "redirect:/login";
+        }
+        model.addAttribute("title", "My Orders - ZylkerKart");
+        addSessionAttributes(model, session);
+        return "pages/orders";
+    }
+
+    // ─── Cart API Proxies ─────────────────────────────────────────────────
+
+    @PostMapping("/api/cart/add")
+    @ResponseBody
+    public ResponseEntity<Object> apiCartAdd(@RequestBody Map<String, Object> body) {
+        Map<String, Object> result = api.post("order", "/cart/add", body);
+        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+    }
+
+    @GetMapping("/api/cart/count")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> apiCartCount(
+            @RequestParam(required = false) String sessionId,
+            HttpSession session) {
+        String sid = (sessionId != null && !sessionId.isEmpty()) ? sessionId : session.getId();
+        Map<String, Object> result = api.get("order", "/cart/" + sid);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) result.get("data");
+        int itemCount = data != null ? ((Number) data.getOrDefault("itemCount", 0)).intValue() : 0;
+        return ResponseEntity.ok(Map.of("itemCount", itemCount));
+    }
+
+    @PutMapping("/api/cart/item")
+    @ResponseBody
+    public ResponseEntity<Object> apiCartUpdate(@RequestBody Map<String, Object> body) {
+        String sessionId = (String) body.get("sessionId");
+        Object productId = body.get("productId");
+        Map<String, Object> result = api.put("order",
+                "/cart/" + sessionId + "/item/" + productId,
+                Map.of("quantity", body.get("quantity")), null);
+        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+    }
+
+    @DeleteMapping("/api/cart/item")
+    @ResponseBody
+    public ResponseEntity<Object> apiCartRemove(@RequestBody Map<String, Object> body) {
+        String sessionId = (String) body.get("sessionId");
+        Object productId = body.get("productId");
+        Map<String, Object> result = api.delete("order",
+                "/cart/" + sessionId + "/item/" + productId);
+        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+    }
+
+    // ─── Search API Proxies ───────────────────────────────────────────────
+
+    @GetMapping("/api/search/suggestions")
+    @ResponseBody
+    public ResponseEntity<Object> apiSearchSuggestions(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "8") String limit) {
+        Map<String, Object> result = api.get("search", "/search/suggestions",
+                Map.of("q", q, "limit", limit));
+        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+    }
+
+    @GetMapping("/api/search/trending")
+    @ResponseBody
+    public ResponseEntity<Object> apiSearchTrending(
+            @RequestParam(defaultValue = "10") String limit) {
+        Map<String, Object> result = api.get("search", "/search/trending",
+                Map.of("limit", limit));
+        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+    }
+
+    @PostMapping("/api/search/log")
+    @ResponseBody
+    public ResponseEntity<Object> apiSearchLog(@RequestBody Map<String, Object> body, HttpSession session) {
+        Map<String, Object> logBody = new HashMap<>(body);
+        logBody.putIfAbsent("sessionId", session.getId());
+        logBody.putIfAbsent("resultsCount", 0);
+        Map<String, Object> result = api.post("search", "/search/log", logBody);
+        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+    }
+
+    // ─── Orders API ───────────────────────────────────────────────────────
+
+    @GetMapping("/api/orders")
+    @ResponseBody
+    public ResponseEntity<Object> apiOrders(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int perPage,
+            HttpSession session) {
+
+        String token = (String) session.getAttribute("auth_token");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> user = (Map<String, Object>) session.getAttribute("user");
+        if (token == null || user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
+        }
+
+        Object userId = user.get("id");
+        if (userId == null) {
+            return ResponseEntity.ok(Map.of("orders", List.of()));
+        }
+
+        Map<String, Object> result = api.get("order", "/orders/user/" + userId,
+                null, token);
+        Object data = result.get("data");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rawOrders = data instanceof List ? (List<Map<String, Object>>) data : new ArrayList<>();
+
+        // Fallback: also look up by session if user-based returned nothing
+        if (rawOrders.isEmpty()) {
+            String sessionId = session.getId();
+            Map<String, Object> sessionResult = api.get("order", "/orders/session/" + sessionId,
+                    null, token);
+            Object sessionData = sessionResult.get("data");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> sessionOrders = sessionData instanceof List
+                    ? (List<Map<String, Object>>) sessionData : new ArrayList<>();
+            rawOrders.addAll(sessionOrders);
+        }
+
+        // Transform snake_case fields from order service to camelCase expected by frontend
+        List<Map<String, Object>> orders = new ArrayList<>();
+        for (Map<String, Object> raw : rawOrders) {
+            Map<String, Object> order = new LinkedHashMap<>();
+            order.put("orderId", raw.get("id"));
+            order.put("status", raw.get("status"));
+            order.put("totalAmount", raw.get("total_amount"));
+            order.put("createdAt", raw.get("created_at"));
+            order.put("shippingAddress", raw.get("shipping_address"));
+            order.put("customerName", raw.get("customer_name"));
+
+            // Transform items
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> rawItems = raw.get("items") instanceof List
+                    ? (List<Map<String, Object>>) raw.get("items") : new ArrayList<>();
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (Map<String, Object> ri : rawItems) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("title", ri.get("product_title"));
+                item.put("quantity", ri.get("quantity"));
+                item.put("price", ri.get("unit_price"));
+                item.put("image", ri.get("image_url"));
+                item.put("size", ri.get("size"));
+                items.add(item);
+            }
+            order.put("items", items);
+
+            // Enrich with payment data
+            Object orderId = raw.get("id");
+            if (orderId != null) {
+                try {
+                    Map<String, Object> txnResult = api.get("payment", "/payments/order/" + orderId);
+                    Object txnData = txnResult.get("data");
+                    if (txnData instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> txn = (Map<String, Object>) txnData;
+                        order.put("transactionId", txn.getOrDefault("transaction_ref", txn.get("transactionRef")));
+                        order.put("paymentMethod", txn.getOrDefault("method", txn.get("paymentMethod")));
+                        order.put("paymentStatus", txn.getOrDefault("status", txn.get("paymentStatus")));
+                    } else if (txnData instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> txns = (List<Map<String, Object>>) txnData;
+                        if (!txns.isEmpty()) {
+                            Map<String, Object> txn = txns.get(0);
+                            order.put("transactionId", txn.getOrDefault("transaction_ref", txn.get("transactionRef")));
+                            order.put("paymentMethod", txn.getOrDefault("method", txn.get("paymentMethod")));
+                            order.put("paymentStatus", txn.getOrDefault("status", txn.get("paymentStatus")));
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip payment enrichment on error
+                }
+            }
+
+            orders.add(order);
+        }
+
+        // Pagination
+        int safePerPage = Math.max(1, Math.min(perPage, 50));
+        int total = orders.size();
+        int totalPages = Math.max(1, (int) Math.ceil((double) total / safePerPage));
+        int safePage = Math.max(1, page);
+        int offset = (safePage - 1) * safePerPage;
+        List<Map<String, Object>> paginatedOrders = orders.subList(
+                Math.min(offset, total),
+                Math.min(offset + safePerPage, total));
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("orders", paginatedOrders);
+        response.put("page", safePage);
+        response.put("totalPages", totalPages);
+        response.put("totalOrders", total);
+        return ResponseEntity.ok(response);
+    }
+
+    // ─── Health Check ─────────────────────────────────────────────────────
+
+    @GetMapping("/health")
+    @ResponseBody
+    public Map<String, Object> health() {
+        return Map.of(
+                "service", "storefront",
+                "status", "UP",
+                "timestamp", LocalDateTime.now().toString()
+        );
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────
+
+    private void addSessionAttributes(Model model, HttpSession session) {
+        model.addAttribute("sessionId", session.getId());
+        model.addAttribute("user", session.getAttribute("user"));
+        model.addAttribute("authToken", session.getAttribute("auth_token"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> getList(Map<String, Object> result, String key) {
+        Map<String, Object> data = (Map<String, Object>) result.get("data");
+        if (data == null) return List.of();
+        Object list = data.get(key);
+        return list instanceof List ? (List<Map<String, Object>>) list : List.of();
+    }
+
+    /**
+     * Parse JSON-encoded string values in a product map into proper objects.
+     * The product API returns some fields (productDetails, deliveryOptions, etc.) as JSON strings.
+     */
+    private void parseJsonStringFields(Map<String, Object> data) {
+        if (data == null) return;
+        String[] jsonFields = {"productDetails", "deliveryOptions", "specifications",
+                "whatCustomersSaid", "offers", "starRating", "sizes"};
+        for (String field : jsonFields) {
+            Object val = data.get(field);
+            if (val instanceof String) {
+                String str = ((String) val).trim();
+                if ((str.startsWith("{") || str.startsWith("[")) && str.length() > 1) {
+                    try {
+                        data.put(field, objectMapper.readValue(str, Object.class));
+                    } catch (JsonProcessingException ignored) {
+                        // leave as string if not valid JSON
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object getData(Map<String, Object> result) {
+        Object data = result.get("data");
+        return data != null ? data : List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getDataMap(Map<String, Object> result) {
+        Object data = result.get("data");
+        return data instanceof Map ? (Map<String, Object>) data : Map.of();
+    }
+}

@@ -35,7 +35,6 @@ case "$ACTION" in
         echo "║  �  Search:           http://localhost:8083                 ║"
         echo "║  💳  Payment:          http://localhost:8084                 ║"
         echo "║  🔐  Auth:             http://localhost:8085                 ║"
-        echo "║  ⚡  Chaos Dashboard:  http://localhost:8086                 ║"
         echo "║                                                             ║"
         echo "║  Demo login: demo@zylkerkart.com / Demo@123                ║"
         echo "╚══════════════════════════════════════════════════════════════╝"

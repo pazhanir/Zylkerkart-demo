@@ -20,6 +20,8 @@ metadata:
 data:
   # Format: AppDisplayName=ProcessName:Port
   go_apps: "ZylkerKart-SearchService=search-service:8083"
+  # License key — injected at deploy time by deploy-k8s.sh
+  S247_LICENSE_KEY: "<your-site24x7-license-key>"
 ---
 # ── ServiceAccount ──────────────────────────────────────────────────────────
 apiVersion: v1
@@ -76,7 +78,7 @@ spec:
       hostPID: true
       containers:
         - name: exporter-agent
-          image: site24x7/apminsight-goagent:latest
+          image: site24x7/apminsight-go-agent:latest
           securityContext:
             privileged: true
             runAsUser: 0
@@ -84,7 +86,7 @@ spec:
             - name: S247_LICENSE_KEY
               valueFrom:
                 configMapKeyRef:
-                  name: zylkerkart-config
+                  name: apm-apps-config
                   key: S247_LICENSE_KEY
             - name: GO_APPS
               valueFrom:

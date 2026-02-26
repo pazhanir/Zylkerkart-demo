@@ -1,0 +1,125 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Auth Service — C# / .NET 8 (port 8085)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: zylkerkart
+  labels:
+    app: auth-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        tier: backend
+    spec:
+      # ── Require amd64 node: .NET CLR profiler (libClrProfilerAgent.so) is x86_64 only ──
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # ── Site24x7 .NET APM agent (init container) ──
+      volumes:
+        - name: s247dotnetagent
+          emptyDir: {}
+      initContainers:
+        - name: s247-dotnet-agent
+          image: site24x7/apminsight-dotnetagent:latest
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'cp -r /opt/site24x7/APMDotNetAgent/. /home/APMDotNetAgent/ && chmod -R 755 /home/APMDotNetAgent && sed -i "s/^application.name=.*/application.name=ZylkerKart-AuthService/" /home/APMDotNetAgent/DotNetCoreAgent/apminsight.conf 2>/dev/null || true']
+          volumeMounts:
+            - name: s247dotnetagent
+              mountPath: /home/APMDotNetAgent
+      containers:
+        - name: auth-service
+          image: zylkerkart/auth-service:latest
+          ports:
+            - containerPort: 8085
+          volumeMounts:
+            - name: s247dotnetagent
+              mountPath: /home/APMDotNetAgent
+          env:
+            - name: S247_LICENSE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: S247_LICENSE_KEY
+            - name: CORECLR_ENABLE_PROFILING
+              value: "1"
+            - name: CORECLR_PROFILER
+              value: "{9D363A5F-ED5F-4AAC-B456-75AFFA6AA0C8}"
+            - name: DOTNETCOREAGENT_HOME
+              value: "/home/APMDotNetAgent"
+            - name: CORECLR_PROFILER_PATH_64
+              value: "/home/APMDotNetAgent/x64/libClrProfilerAgent.so"
+            - name: CORECLR_PROFILER_PATH_32
+              value: "/home/APMDotNetAgent/x86/libClrProfilerAgent.so"
+            - name: DOTNET_STARTUP_HOOKS
+              value: "/home/APMDotNetAgent/netstandard2.0/DotNetAgent.Loader.dll"
+            - name: MANAGEENGINE_COMMUNICATION_MODE
+              value: "direct"
+            - name: SITE24X7_APP_NAME
+              value: "ZylkerKart-AuthService"
+            - name: PORT
+              value: "8085"
+            - name: DB_HOST
+              value: "mysql"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: MYSQL_ROOT_PASSWORD
+            - name: DB_NAME
+              value: "db_auth"
+            - name: JWT_SECRET
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: JWT_SECRET
+            - name: JWT_EXPIRY_MINUTES
+              value: "15"
+            - name: JWT_REFRESH_EXPIRY_DAYS
+              value: "7"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "192Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: zylkerkart
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8085
+      targetPort: 8085

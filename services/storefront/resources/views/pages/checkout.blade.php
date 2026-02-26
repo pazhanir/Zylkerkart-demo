@@ -105,12 +105,8 @@
                 <span class="payment-icon">💳</span> Credit / Debit Card
             </label>
             <label class="payment-option">
-                <input type="radio" name="payment_method" value="upi" form="checkoutForm">
-                <span class="payment-icon">📱</span> UPI
-            </label>
-            <label class="payment-option">
-                <input type="radio" name="payment_method" value="net_banking" form="checkoutForm">
-                <span class="payment-icon">🏦</span> Net Banking
+                <input type="radio" name="payment_method" value="bank_transfer" form="checkoutForm">
+                <span class="payment-icon">🏦</span> Bank Transfer
             </label>
             <label class="payment-option">
                 <input type="radio" name="payment_method" value="cod" form="checkoutForm">
@@ -162,11 +158,186 @@
             </div>
         @endif
 
-        <button type="submit" form="checkoutForm" class="btn-primary" 
+        <button type="button" id="placeOrderBtn" class="btn-primary" 
                 style="display: block; width: 100%; text-align: center; margin-top: 15px; font-size: 16px; padding: 14px;">
             Place Order
         </button>
         <p class="secure-text">🔒 Secure checkout powered by ZylkerKart</p>
     </div>
 </div>
+
+<!-- Order Result Popup Overlay -->
+<div id="orderPopupOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;">
+    <div id="orderPopup" style="background:#fff; border-radius:14px; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 12px 48px rgba(0,0,0,0.25); animation: popIn 0.3s ease;">
+        <!-- Dynamic content injected by JS -->
+    </div>
+</div>
+
+<style>
+    @keyframes popIn { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .popup-header { padding: 30px 30px 10px; text-align: center; }
+    .popup-icon { font-size: 56px; margin-bottom: 10px; }
+    .popup-title { font-size: 22px; font-weight: 700; margin: 0; }
+    .popup-subtitle { font-size: 14px; color: #888; margin-top: 4px; }
+    .popup-body { padding: 10px 30px 20px; }
+    .popup-detail-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+    .popup-detail-row:last-child { border-bottom: none; }
+    .popup-detail-label { color: #888; }
+    .popup-detail-value { font-weight: 600; color: #333; }
+    .popup-items { margin-top: 12px; }
+    .popup-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+    .popup-item:last-child { border-bottom: none; }
+    .popup-item-img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; background: #f8f8f8; }
+    .popup-item-info { flex: 1; min-width: 0; }
+    .popup-item-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .popup-item-qty { font-size: 12px; color: #999; }
+    .popup-item-price { font-size: 14px; font-weight: 600; white-space: nowrap; }
+    .popup-footer { padding: 10px 30px 30px; text-align: center; }
+    .popup-btn { display: inline-block; padding: 12px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; text-decoration: none; transition: background 0.2s; }
+    .popup-btn-primary { background: #0073e6; color: #fff; }
+    .popup-btn-primary:hover { background: #005bb5; }
+    .popup-btn-danger { background: #e53935; color: #fff; }
+    .popup-btn-danger:hover { background: #c62828; }
+    .popup-btn + .popup-btn { margin-left: 10px; }
+    .popup-total-row { display: flex; justify-content: space-between; padding: 12px 0 0; margin-top: 8px; border-top: 2px solid #eee; font-size: 16px; font-weight: 700; }
+    .popup-total-amount { color: #e91e63; }
+    #placeOrderBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('placeOrderBtn');
+    const form = document.getElementById('checkoutForm');
+    const overlay = document.getElementById('orderPopupOverlay');
+    const popup = document.getElementById('orderPopup');
+
+    btn.addEventListener('click', async function() {
+        // Basic validation
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
+
+        const formData = new FormData(form);
+        // Add payment method (it's outside the form tag but linked via form attr)
+        const paymentMethod = document.querySelector('input[name="payment_method"]:checked');
+        if (paymentMethod) formData.append('payment_method', paymentMethod.value);
+
+        try {
+            const response = await fetch('/checkout', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json',
+                },
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showSuccessPopup(data);
+            } else {
+                showFailurePopup(data.message || 'Payment failed. Please try again.');
+            }
+        } catch (err) {
+            showFailurePopup('Something went wrong. Please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Place Order';
+        }
+    });
+
+    function showSuccessPopup(data) {
+        const order = data.order || {};
+        const items = order.items || [];
+        const payment = order.payment || {};
+
+        let itemsHtml = '';
+        items.forEach(item => {
+            itemsHtml += `
+                <div class="popup-item">
+                    <img src="${item.image || ''}" class="popup-item-img" alt="">
+                    <div class="popup-item-info">
+                        <div class="popup-item-name">${item.title || ''}</div>
+                        <div class="popup-item-qty">Qty: ${item.quantity || 1}${item.size ? ' · Size: ' + item.size : ''}</div>
+                    </div>
+                    <div class="popup-item-price">$${(parseFloat(item.price || 0) * (item.quantity || 1)).toFixed(2)}</div>
+                </div>`;
+        });
+
+        popup.innerHTML = `
+            <div class="popup-header">
+                <div class="popup-icon">✅</div>
+                <h2 class="popup-title">Order Placed Successfully!</h2>
+                <p class="popup-subtitle">Thank you for shopping with ZylkerKart</p>
+            </div>
+            <div class="popup-body">
+                <div class="popup-detail-row">
+                    <span class="popup-detail-label">Order ID</span>
+                    <span class="popup-detail-value">#${order.orderId || ''}</span>
+                </div>
+                <div class="popup-detail-row">
+                    <span class="popup-detail-label">Status</span>
+                    <span class="popup-detail-value" style="color: #2e7d32; text-transform: capitalize;">${order.status || 'Confirmed'}</span>
+                </div>
+                <div class="popup-detail-row">
+                    <span class="popup-detail-label">Payment</span>
+                    <span class="popup-detail-value" style="text-transform: capitalize;">${(payment.method || order.paymentMethod || '').replace(/_/g, ' ')}</span>
+                </div>
+                ${payment.transactionId ? `
+                <div class="popup-detail-row">
+                    <span class="popup-detail-label">Transaction ID</span>
+                    <span class="popup-detail-value" style="font-family: 'Courier New', monospace; font-size: 12px;">${payment.transactionId}</span>
+                </div>` : ''}
+                <div class="popup-items">
+                    <div style="font-size:13px; font-weight:600; color:#888; text-transform:uppercase; margin-bottom:6px;">Items</div>
+                    ${itemsHtml}
+                </div>
+                <div class="popup-total-row">
+                    <span>Total</span>
+                    <span class="popup-total-amount">$${parseFloat(order.totalAmount || 0).toFixed(2)}</span>
+                </div>
+            </div>
+            <div class="popup-footer">
+                <a href="/" class="popup-btn popup-btn-primary">Continue Shopping</a>
+            </div>`;
+
+        overlay.style.display = 'flex';
+    }
+
+    function showFailurePopup(message) {
+        popup.innerHTML = `
+            <div class="popup-header">
+                <div class="popup-icon">❌</div>
+                <h2 class="popup-title" style="color: #c62828;">Payment Failed</h2>
+                <p class="popup-subtitle">${message}</p>
+            </div>
+            <div class="popup-footer" style="padding-top: 20px;">
+                <button class="popup-btn popup-btn-danger" onclick="closePopup()">Retry Again</button>
+            </div>`;
+
+        overlay.style.display = 'flex';
+    }
+
+    // Close popup and stay on checkout page for retry
+    window.closePopup = function() {
+        overlay.style.display = 'none';
+        popup.innerHTML = '';
+    };
+
+    // Close on overlay click (not on popup itself)
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            // Only close failure popups on overlay click
+            if (popup.querySelector('.popup-btn-danger')) {
+                closePopup();
+            }
+        }
+    });
+});
+</script>
 @endsection

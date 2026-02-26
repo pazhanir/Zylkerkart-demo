@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Payment Service — Python 3.11 / FastAPI (port 8084)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: zylkerkart
+  labels:
+    app: payment-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        tier: backend
+    spec:
+      # ── Site24x7 Python APM agent (init container) ──
+      volumes:
+        - name: s247agent
+          emptyDir: {}
+      initContainers:
+        - name: s247-python-agent
+          image: site24x7/apminsight-pythonagent:latest
+          command: ['sh', '-c', 'cp -r /opt/site24x7/. /home/apm && chmod -R 755 /home/apm']
+          volumeMounts:
+            - name: s247agent
+              mountPath: /home/apm
+      containers:
+        - name: payment-service
+          image: zylkerkart/payment-service:latest
+          command: ["/bin/sh", "-c", "/home/apm/agent_start.sh"]
+          ports:
+            - containerPort: 8084
+          volumeMounts:
+            - name: s247agent
+              mountPath: /home/apm
+          env:
+            - name: APP_RUN_COMMAND
+              value: "uvicorn app.main:app --host 0.0.0.0 --port 8084"
+            - name: APM_APP_NAME
+              value: "ZylkerKart-PaymentService"
+            - name: S247_LICENSE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: S247_LICENSE_KEY
+            - name: PORT
+              value: "8084"
+            - name: DB_HOST
+              value: "mysql"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: MYSQL_ROOT_PASSWORD
+            - name: DB_NAME
+              value: "db_payment"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 25
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "192Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: zylkerkart
+spec:
+  selector:
+    app: payment-service
+  ports:
+    - port: 8084
+      targetPort: 8084

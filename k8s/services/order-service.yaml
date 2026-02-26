@@ -1,0 +1,117 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Order Service — Node.js 18 / Express (port 8082)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: zylkerkart
+  labels:
+    app: order-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+        tier: backend
+    spec:
+      # ── Site24x7 Node.js APM agent (init container, prebuilt image) ──
+      volumes:
+        - name: s247agent
+          emptyDir: {}
+      initContainers:
+        - name: s247-nodejs-agent
+          image: site24x7/apminsight-nodejsagent:latest
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'cp -r /opt/site24x7/. /apm && chmod -R 755 /apm']
+          volumeMounts:
+            - name: s247agent
+              mountPath: /apm
+      containers:
+        - name: order-service
+          image: zylkerkart/order-service:latest
+          ports:
+            - containerPort: 8082
+          volumeMounts:
+            - name: s247agent
+              mountPath: /apm
+          env:
+            - name: NODE_OPTIONS
+              value: "--require /apm/node_modules/apminsight"
+            - name: APMINSIGHT_LICENSE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: S247_LICENSE_KEY
+            - name: APMINSIGHT_APP_NAME
+              value: "ZylkerKart-OrderService"
+            - name: APMINSIGHT_APP_PORT
+              value: "8082"
+            - name: PORT
+              value: "8082"
+            - name: DB_HOST
+              value: "mysql"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: MYSQL_ROOT_PASSWORD
+            - name: DB_NAME
+              value: "db_order"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: PAYMENT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: PAYMENT_SERVICE_URL
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: AUTH_SERVICE_URL
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "192Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: zylkerkart
+spec:
+  selector:
+    app: order-service
+  ports:
+    - port: 8082
+      targetPort: 8082

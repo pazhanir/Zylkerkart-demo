@@ -444,9 +444,6 @@ spec:
         app: auth-service
         tier: backend
     spec:
-      # ── Require amd64 node: .NET CLR profiler (libClrProfilerAgent.so) is x86_64 only ──
-      nodeSelector:
-        kubernetes.io/arch: amd64
       # ── Site24x7 .NET APM agent (init container) ──
       volumes:
         - name: s247dotnetagent
@@ -455,7 +452,7 @@ spec:
         - name: s247-dotnet-agent
           image: site24x7/apminsight-dotnetagent:latest
           imagePullPolicy: IfNotPresent
-          command: ['sh', '-c', 'cp -r /opt/site24x7/APMDotNetAgent/. /home/APMDotNetAgent/ && chmod -R 755 /home/APMDotNetAgent && sed -i "s/^application.name=.*/application.name=ZylkerKart-AuthService/" /home/APMDotNetAgent/DotNetCoreAgent/apminsight.conf 2>/dev/null || true']
+          command: ['sh', '-c', 'cp -r /opt/site24x7/APMDotNetAgent/. /home/APMDotNetAgent/ && chmod -R 755 /home/APMDotNetAgent']
           volumeMounts:
             - name: s247dotnetagent
               mountPath: /home/APMDotNetAgent

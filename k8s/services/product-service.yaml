@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Product Service — Java 17 / Spring Boot (port 8081)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: zylkerkart
+  labels:
+    app: product-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+        tier: backend
+    spec:
+      # ── Site24x7 Java APM agent (init container) ──
+      volumes:
+        - name: s247agent
+          emptyDir: {}
+      initContainers:
+        - name: s247-java-agent
+          image: site24x7/apminsight-javaagent:latest
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'cp -r /opt/site24x7/. /home/apm && chmod -R 755 /home/apm']
+          volumeMounts:
+            - name: s247agent
+              mountPath: /home/apm
+      containers:
+        - name: product-service
+          image: zylkerkart/product-service:latest
+          ports:
+            - containerPort: 8081
+          volumeMounts:
+            - name: s247agent
+              mountPath: /home/apm
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: "-javaagent:/home/apm/apminsight-javaagent.jar -Dapminsight.application.name=ZylkerKart-ProductService"
+            - name: S247_LICENSE_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: S247_LICENSE_KEY
+            - name: SERVER_PORT
+              value: "8081"
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql:3306/db_product?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: DB_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: MYSQL_ROOT_PASSWORD
+            - name: SPRING_REDIS_HOST
+              value: "redis"
+            - name: SPRING_REDIS_PORT
+              value: "6379"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 90
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: zylkerkart
+spec:
+  selector:
+    app: product-service
+  ports:
+    - port: 8081
+      targetPort: 8081

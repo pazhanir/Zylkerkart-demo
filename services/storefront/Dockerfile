@@ -1,59 +1,29 @@
-FROM php:8.2-apache
+# ---- Stage 1: Build ----
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+COPY src ./src
+RUN mvn package -DskipTests -B
 
-# Install PHP extensions and dependencies
-RUN apt-get update && apt-get install -y \
-    libzip-dev \
-    unzip \
-    git \
-    curl \
-    libpng-dev \
-    && docker-php-ext-install pdo pdo_mysql zip gd \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# ---- Stage 2: Runtime ----
+FROM eclipse-temurin:17-jre
+WORKDIR /app
 
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
+# Install curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
-# Configure Apache virtual host
-RUN echo '<VirtualHost *:80>\n\
-    DocumentRoot /var/www/html/public\n\
-    <Directory /var/www/html/public>\n\
-        AllowOverride All\n\
-        Require all granted\n\
-    </Directory>\n\
-    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
-    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
-</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+# Create non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-# Install Composer
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+# Copy the built JAR
+COPY --from=build /app/target/*.jar app.jar
 
-WORKDIR /var/www/html
-
-# Copy composer files and install dependencies
-COPY composer.json composer.lock* ./
-RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist 2>/dev/null || \
-    composer install --no-dev --no-scripts --prefer-dist
-
-# Copy application source
-COPY . .
-
-# Generate autoloader and optimize
-RUN composer dump-autoload --optimize
-
-# Set permissions
-RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs bootstrap/cache && \
-    cp .env.example .env 2>/dev/null || true && \
-    chown -R www-data:www-data storage bootstrap/cache
-
-# Generate app key if not set
-RUN php artisan key:generate --force 2>/dev/null || true
+# Site24x7 Java Agent placeholder
+RUN mkdir -p /opt/site24x7
 
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost/health || exit 1
+USER appuser
 
-CMD ["apache2-foreground"]
+ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-jar", "app.jar"]

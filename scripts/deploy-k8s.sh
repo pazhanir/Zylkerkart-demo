@@ -1,19 +1,43 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
 # ZylkerKart — Deploy to Kubernetes
-# Usage:  ./deploy-k8s.sh
+# Usage:  ./deploy-k8s.sh                  # full cluster deploy
+#         ./deploy-k8s.sh <service-name>   # redeploy a single service
+# Example: ./deploy-k8s.sh order-service
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 K8S_DIR="${ROOT_DIR}/k8s"
+SERVICES_DIR="${K8S_DIR}/services"
 REGISTRY="${DOCKER_REGISTRY:-zylkerkart}"
 TAG="${IMAGE_TAG:-latest}"
+SINGLE_SERVICE="${1:-}"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║        ZylkerKart — Kubernetes Deployment                   ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
+
+# ── Single-service redeploy shortcut ──
+if [ -n "$SINGLE_SERVICE" ]; then
+    SVC_FILE="${SERVICES_DIR}/${SINGLE_SERVICE}.yaml"
+    if [ ! -f "$SVC_FILE" ]; then
+        echo "❌ No manifest found at k8s/services/${SINGLE_SERVICE}.yaml"
+        echo "   Available services:"
+        ls "${SERVICES_DIR}"/*.yaml 2>/dev/null | xargs -n1 basename | sed 's/.yaml$//' | sed 's/^/     - /'
+        exit 1
+    fi
+    echo "▶ Redeploying single service: ${SINGLE_SERVICE}"
+    kubectl apply -f "$SVC_FILE"
+    kubectl -n zylkerkart rollout restart deployment "${SINGLE_SERVICE}" 2>/dev/null || true
+    echo "  ⏳ Waiting for rollout..."
+    kubectl -n zylkerkart rollout status deployment "${SINGLE_SERVICE}" --timeout=120s 2>/dev/null || true
+    echo "  ✅ ${SINGLE_SERVICE} redeployed"
+    echo ""
+    kubectl -n zylkerkart get pods -l app="${SINGLE_SERVICE}" -o wide
+    exit 0
+fi
 
 # ── Prompt for Site24x7 license key ──
 read -rp "🔑 Enter Site24x7 APM License Key (leave empty to skip APM): " S247_KEY
@@ -67,9 +91,13 @@ kubectl -n zylkerkart wait --for=condition=ready pod -l app=redis --timeout=60s 
 echo "  ✅ Redis ready"
 echo ""
 
-# ── Step 6: Application services ──
+# ── Step 6: Application services (individual deployments) ──
 echo "▶ Step 6: Deploying application services..."
-kubectl apply -f "${K8S_DIR}/services.yaml"
+for svc_file in "${SERVICES_DIR}"/*.yaml; do
+    svc_name=$(basename "$svc_file" .yaml)
+    echo "  ▶ Applying ${svc_name}..."
+    kubectl apply -f "$svc_file"
+done
 echo "  ⏳ Waiting for all pods to be ready..."
 kubectl -n zylkerkart wait --for=condition=ready pod --all --timeout=180s 2>/dev/null || true
 echo "  ✅ Application services ready"
@@ -84,7 +112,8 @@ echo ""
 # ── Step 8: Site24x7 Go APM DaemonSet ──
 if [ -n "$S247_KEY" ]; then
     echo "▶ Step 8: Deploying Site24x7 Go APM DaemonSet..."
-    kubectl apply -f "${K8S_DIR}/go-apm-daemonset.yaml"
+    echo "  🔑 Injecting Site24x7 license key into Go APM ConfigMap"
+    sed "s|<your-site24x7-license-key>|${S247_KEY}|g" "${K8S_DIR}/go-apm-daemonset.yaml" | kubectl apply -f -
     echo "  ⏳ Waiting for DaemonSet to roll out..."
     kubectl -n monitoring wait --for=condition=ready pod -l app=site24x7-go-apm --timeout=120s 2>/dev/null || true
     echo "  ✅ Go APM agent ready"
@@ -132,10 +161,9 @@ echo "╔═══════════════════════�
 echo "║  ZylkerKart deployed to Kubernetes!                         ║"
 echo "║                                                             ║"
 echo "║  Add to /etc/hosts:                                         ║"
-echo "║    127.0.0.1  zylkerkart.local chaos.zylkerkart.local       ║"
+echo "║    127.0.0.1  zylkerkart.local                               ║"
 echo "║                                                             ║"
 echo "║  🛒  Storefront:      http://zylkerkart.local               ║"
-echo "║  ⚡  Chaos Dashboard:  http://chaos.zylkerkart.local         ║"
 echo "║                                                             ║"
 echo "║  Or port-forward individual services:                       ║"
 echo "║    kubectl -n zylkerkart port-forward svc/storefront 8080:80 ║"

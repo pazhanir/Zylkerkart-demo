@@ -141,8 +141,25 @@ class HomeController extends Controller
             ],
         ], $token);
 
+        // Return JSON for AJAX popup
+        if ($request->expectsJson() || $request->header('Accept') === 'application/json') {
+            if ($order['status'] >= 200 && $order['status'] < 300) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Order placed successfully!',
+                    'order'   => $order['data'] ?? [],
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $order['data']['error'] ?? 'Payment failed. Please try again.',
+            ], $order['status'] >= 400 ? $order['status'] : 422);
+        }
+
+        // Fallback for non-JS submissions
         if ($order['status'] >= 200 && $order['status'] < 300) {
-            return redirect('/')->with('success', 'Order placed successfully! Order ID: ' . ($order['data']['id'] ?? ''));
+            return redirect('/')->with('success', 'Order placed successfully! Order ID: ' . ($order['data']['orderId'] ?? ''));
         }
 
         return back()->withInput()->withErrors(['order' => $order['data']['error'] ?? 'Failed to place order']);

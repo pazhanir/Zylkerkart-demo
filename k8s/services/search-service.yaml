@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Search Service — Go 1.21 / Gin (port 8083)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+  namespace: zylkerkart
+  labels:
+    app: search-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-service
+  template:
+    metadata:
+      labels:
+        app: search-service
+        tier: backend
+    spec:
+      # ── Init container: copy Go binary to hostPath for eBPF uprobe access ──
+      initContainers:
+        - name: copy-binary
+          image: zylkerkart/search-service:latest
+          command: ["cp", "/app/search-service", "/apm-bin/search-service"]
+          volumeMounts:
+            - name: apm-binaries
+              mountPath: /apm-bin
+      containers:
+        - name: search-service
+          image: zylkerkart/search-service:latest
+          # Run binary from hostPath so eBPF uprobes can attach
+          command: ["/apm-bin/search-service"]
+          ports:
+            - containerPort: 8083
+          env:
+            - name: PORT
+              value: "8083"
+            - name: DB_HOST
+              value: "mysql"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: zylkerkart-config
+                  key: MYSQL_ROOT_PASSWORD
+            - name: DB_NAME
+              value: "db_search"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: apm-binaries
+              mountPath: /apm-bin
+          resources:
+            requests:
+              memory: "96Mi"
+              cpu: "50m"
+            limits:
+              memory: "320Mi"
+              cpu: "200m"
+      volumes:
+        - name: apm-binaries
+          hostPath:
+            path: /var/lib/apm-binaries
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-service
+  namespace: zylkerkart
+spec:
+  selector:
+    app: search-service
+  ports:
+    - port: 8083
+      targetPort: 8083

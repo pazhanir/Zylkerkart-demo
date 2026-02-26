@@ -6,11 +6,12 @@ const { optionalAuth } = require('../middleware/authMiddleware');
 // POST /orders - Create order from cart
 router.post('/', optionalAuth, async (req, res) => {
   try {
-    const { sessionId, customer } = req.body;
+    const { sessionId, customer, userId: bodyUserId } = req.body;
     if (!sessionId || !customer || !customer.name) {
       return res.status(400).json({ error: 'Missing required fields: sessionId, customer.name' });
     }
-    const userId = req.user?.id || null;
+    // Use token-based userId first, fall back to userId from request body
+    const userId = req.user?.id || bodyUserId || null;
     const order = await orderService.createOrder(sessionId, customer, userId);
     res.status(201).json(order);
   } catch (err) {
