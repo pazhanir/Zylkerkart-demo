@@ -12,6 +12,10 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+.classpath
+.factorypath
+.project
+.settings/
 
 # Java
 services/product-service/target/
@@ -35,12 +39,6 @@ venv/
 # .NET
 services/auth-service/bin/
 services/auth-service/obj/
-
-# PHP/Laravel
-services/storefront/vendor/
-services/storefront/node_modules/
-services/storefront/storage/logs/*
-services/storefront/.env
 
 # Docker
 *.log
