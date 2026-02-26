@@ -167,14 +167,22 @@ public class ApiGateway {
     private String buildUrl(String service, String path, Map<String, String> query) {
         StringBuilder url = new StringBuilder(serviceUrls.get(service)).append(path);
         if (query != null && !query.isEmpty()) {
-            url.append("?");
+            StringBuilder params = new StringBuilder();
             query.forEach((k, v) -> {
                 if (v != null && !v.isEmpty()) {
-                    url.append(k).append("=").append(v).append("&");
+                    if (params.length() > 0) params.append("&");
+                    try {
+                        params.append(java.net.URLEncoder.encode(k, "UTF-8"))
+                              .append("=")
+                              .append(java.net.URLEncoder.encode(v, "UTF-8"));
+                    } catch (java.io.UnsupportedEncodingException e) {
+                        params.append(k).append("=").append(v);
+                    }
                 }
             });
-            // Remove trailing &
-            url.setLength(url.length() - 1);
+            if (params.length() > 0) {
+                url.append("?").append(params);
+            }
         }
         return url.toString();
     }

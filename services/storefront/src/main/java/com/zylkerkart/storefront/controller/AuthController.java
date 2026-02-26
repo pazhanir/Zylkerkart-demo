@@ -71,11 +71,10 @@ public class AuthController {
         body.put("password", password);
 
         Map<String, Object> result = api.post("auth", "/auth/login", body);
-        int status = (int) result.get("status");
+        int status = safeInt(result, "status", 0);
 
         if (status >= 200 && status < 300) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = (Map<String, Object>) result.get("data");
+            Map<String, Object> data = safeMap(result.get("data"));
             if (data != null) {
                 session.setAttribute("auth_token", data.get("accessToken"));
                 session.setAttribute("user", data.get("user"));
@@ -85,10 +84,9 @@ public class AuthController {
             return "redirect:" + (redirect != null ? redirect : "/");
         }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> errorData = (Map<String, Object>) result.get("data");
+        Map<String, Object> errorData = safeMap(result.get("data"));
         String error = errorData != null
-                ? (String) errorData.getOrDefault("error", "Invalid email or password")
+                ? safeString(errorData, "error", "Invalid email or password")
                 : "Invalid email or password";
 
         model.addAttribute("error", error);
@@ -102,17 +100,19 @@ public class AuthController {
 
     @PostMapping("/register")
     public String register(
-            @RequestParam String name,
+            @RequestParam String fullName,
             @RequestParam String email,
             @RequestParam String password,
             @RequestParam(name = "password_confirmation") String passwordConfirmation,
+            @RequestParam(required = false) String phone,
             HttpSession session,
             Model model) {
 
         if (!password.equals(passwordConfirmation)) {
             model.addAttribute("error", "Passwords do not match");
-            model.addAttribute("name", name);
+            model.addAttribute("fullName", fullName);
             model.addAttribute("email", email);
+            model.addAttribute("phone", phone);
             model.addAttribute("title", "Register - ZylkerKart");
             model.addAttribute("user", session.getAttribute("user"));
             model.addAttribute("sessionId", session.getId());
@@ -121,16 +121,18 @@ public class AuthController {
         }
 
         Map<String, Object> body = new HashMap<>();
-        body.put("name", name);
+        body.put("fullName", fullName);
         body.put("email", email);
         body.put("password", password);
+        if (phone != null && !phone.isBlank()) {
+            body.put("phone", phone);
+        }
 
         Map<String, Object> result = api.post("auth", "/auth/register", body);
-        int status = (int) result.get("status");
+        int status = safeInt(result, "status", 0);
 
         if (status >= 200 && status < 300) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = (Map<String, Object>) result.get("data");
+            Map<String, Object> data = safeMap(result.get("data"));
             if (data != null) {
                 session.setAttribute("auth_token", data.get("accessToken"));
                 session.setAttribute("user", data.get("user"));
@@ -138,15 +140,15 @@ public class AuthController {
             return "redirect:/";
         }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> errorData = (Map<String, Object>) result.get("data");
+        Map<String, Object> errorData = safeMap(result.get("data"));
         String error = errorData != null
-                ? (String) errorData.getOrDefault("error", "Registration failed")
+                ? safeString(errorData, "error", "Registration failed")
                 : "Registration failed";
 
         model.addAttribute("error", error);
-        model.addAttribute("name", name);
+        model.addAttribute("fullName", fullName);
         model.addAttribute("email", email);
+        model.addAttribute("phone", phone);
         model.addAttribute("title", "Register - ZylkerKart");
         model.addAttribute("user", session.getAttribute("user"));
         model.addAttribute("sessionId", session.getId());
@@ -159,5 +161,28 @@ public class AuthController {
         session.removeAttribute("auth_token");
         session.removeAttribute("user");
         return "redirect:/login";
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────
+
+    private int safeInt(Map<String, Object> map, String key, int defaultValue) {
+        Object val = map.get(key);
+        if (val instanceof Number) return ((Number) val).intValue();
+        if (val instanceof String) {
+            try { return Integer.parseInt((String) val); } catch (NumberFormatException ignored) {}
+        }
+        return defaultValue;
+    }
+
+    private String safeString(Map<String, Object> map, String key, String defaultValue) {
+        Object val = map.get(key);
+        if (val instanceof String) return (String) val;
+        if (val != null) return String.valueOf(val);
+        return defaultValue;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeMap(Object obj) {
+        return obj instanceof Map ? (Map<String, Object>) obj : null;
     }
 }

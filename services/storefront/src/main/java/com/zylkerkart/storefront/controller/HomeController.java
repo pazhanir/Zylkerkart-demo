@@ -94,17 +94,16 @@ public class HomeController {
      * Single product detail page.
      */
     @GetMapping("/products/{id}")
-    public String productDetail(@PathVariable int id, Model model, HttpSession session) {
+    public String productDetail(@PathVariable long id, Model model, HttpSession session) {
         Map<String, Object> product = api.get("product", "/products/" + id);
 
-        if ((int) product.get("status") != 200) {
+        if (safeInt(product, "status", 0) != 200) {
             return "error/404";
         }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) product.get("data");
-        String title = (data != null ? data.getOrDefault("title", "Product") : "Product")
-                + " - " + (data != null ? data.getOrDefault("productDescription", "ZylkerKart") : "ZylkerKart");
+        Map<String, Object> data = safeMap(product.get("data"));
+        String title = safeString(data, "title", "Product")
+                + " - " + safeString(data, "productDescription", "ZylkerKart");
 
         parseJsonStringFields(data);
         model.addAttribute("product", data);
@@ -164,19 +163,18 @@ public class HomeController {
         String sessionId = session.getId();
 
         // Extract fields sent by the checkout JS
-        String fullName = (String) payload.getOrDefault("fullName", "");
-        String phone = (String) payload.getOrDefault("phone", "");
-        String address = (String) payload.getOrDefault("address", "");
-        String email = (String) payload.getOrDefault("email", "");
-        String paymentMethod = (String) payload.getOrDefault("paymentMethod", "cod");
+        String fullName = safeString(payload, "fullName", "");
+        String phone = safeString(payload, "phone", "");
+        String address = safeString(payload, "address", "");
+        String email = safeString(payload, "email", "");
+        String paymentMethod = safeString(payload, "paymentMethod", "cod");
 
         // Get user from session for email fallback and userId
-        @SuppressWarnings("unchecked")
-        Map<String, Object> user = (Map<String, Object>) session.getAttribute("user");
+        Map<String, Object> user = getSessionUser(session);
 
         // Fall back to session user email if not provided
         if (email.isEmpty()) {
-            email = user != null ? (String) user.getOrDefault("email", "") : "";
+            email = user != null ? safeString(user, "email", "") : "";
         }
 
         // Get userId from session user
@@ -197,7 +195,7 @@ public class HomeController {
         }
 
         Map<String, Object> order = api.post("order", "/orders", body, token);
-        int status = (int) order.get("status");
+        int status = safeInt(order, "status", 0);
 
         if (status >= 200 && status < 300) {
             Map<String, Object> result = new HashMap<>();
@@ -207,10 +205,9 @@ public class HomeController {
             return ResponseEntity.ok(result);
         }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> errorData = (Map<String, Object>) order.get("data");
+        Map<String, Object> errorData = safeMap(order.get("data"));
         String errorMsg = errorData != null
-                ? (String) errorData.getOrDefault("error", "Payment failed. Please try again.")
+                ? safeString(errorData, "error", "Payment failed. Please try again.")
                 : "Payment failed. Please try again.";
 
         return ResponseEntity.status(status >= 400 ? status : 422)
@@ -237,7 +234,7 @@ public class HomeController {
     @ResponseBody
     public ResponseEntity<Object> apiCartAdd(@RequestBody Map<String, Object> body) {
         Map<String, Object> result = api.post("order", "/cart/add", body);
-        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+        return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
     @GetMapping("/api/cart/count")
@@ -247,31 +244,30 @@ public class HomeController {
             HttpSession session) {
         String sid = (sessionId != null && !sessionId.isEmpty()) ? sessionId : session.getId();
         Map<String, Object> result = api.get("order", "/cart/" + sid);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) result.get("data");
-        int itemCount = data != null ? ((Number) data.getOrDefault("itemCount", 0)).intValue() : 0;
+        Map<String, Object> data = safeMap(result.get("data"));
+        int itemCount = data != null ? safeInt(data, "itemCount", 0) : 0;
         return ResponseEntity.ok(Map.of("itemCount", itemCount));
     }
 
     @PutMapping("/api/cart/item")
     @ResponseBody
     public ResponseEntity<Object> apiCartUpdate(@RequestBody Map<String, Object> body) {
-        String sessionId = (String) body.get("sessionId");
+        String sessionId = safeString(body, "sessionId", "");
         Object productId = body.get("productId");
         Map<String, Object> result = api.put("order",
                 "/cart/" + sessionId + "/item/" + productId,
                 Map.of("quantity", body.get("quantity")), null);
-        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+        return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
     @DeleteMapping("/api/cart/item")
     @ResponseBody
     public ResponseEntity<Object> apiCartRemove(@RequestBody Map<String, Object> body) {
-        String sessionId = (String) body.get("sessionId");
+        String sessionId = safeString(body, "sessionId", "");
         Object productId = body.get("productId");
         Map<String, Object> result = api.delete("order",
                 "/cart/" + sessionId + "/item/" + productId);
-        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+        return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
     // ─── Search API Proxies ───────────────────────────────────────────────
@@ -283,7 +279,7 @@ public class HomeController {
             @RequestParam(defaultValue = "8") String limit) {
         Map<String, Object> result = api.get("search", "/search/suggestions",
                 Map.of("q", q, "limit", limit));
-        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+        return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
     @GetMapping("/api/search/trending")
@@ -292,7 +288,7 @@ public class HomeController {
             @RequestParam(defaultValue = "10") String limit) {
         Map<String, Object> result = api.get("search", "/search/trending",
                 Map.of("limit", limit));
-        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+        return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
     @PostMapping("/api/search/log")
@@ -302,7 +298,7 @@ public class HomeController {
         logBody.putIfAbsent("sessionId", session.getId());
         logBody.putIfAbsent("resultsCount", 0);
         Map<String, Object> result = api.post("search", "/search/log", logBody);
-        return ResponseEntity.status((int) result.get("status")).body(result.get("data"));
+        return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
     // ─── Orders API ───────────────────────────────────────────────────────
@@ -315,8 +311,7 @@ public class HomeController {
             HttpSession session) {
 
         String token = (String) session.getAttribute("auth_token");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> user = (Map<String, Object>) session.getAttribute("user");
+        Map<String, Object> user = getSessionUser(session);
         if (token == null || user == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
         }
@@ -345,16 +340,16 @@ public class HomeController {
             rawOrders.addAll(sessionOrders);
         }
 
-        // Transform snake_case fields from order service to camelCase expected by frontend
+        // Transform fields from order service — handle both snake_case and camelCase
         List<Map<String, Object>> orders = new ArrayList<>();
         for (Map<String, Object> raw : rawOrders) {
             Map<String, Object> order = new LinkedHashMap<>();
             order.put("orderId", raw.get("id"));
             order.put("status", raw.get("status"));
-            order.put("totalAmount", raw.get("total_amount"));
-            order.put("createdAt", raw.get("created_at"));
-            order.put("shippingAddress", raw.get("shipping_address"));
-            order.put("customerName", raw.get("customer_name"));
+            order.put("totalAmount", getFlexKey(raw, "total_amount", "totalAmount"));
+            order.put("createdAt", getFlexKey(raw, "created_at", "createdAt"));
+            order.put("shippingAddress", getFlexKey(raw, "shipping_address", "shippingAddress"));
+            order.put("customerName", getFlexKey(raw, "customer_name", "customerName"));
 
             // Transform items
             @SuppressWarnings("unchecked")
@@ -363,10 +358,10 @@ public class HomeController {
             List<Map<String, Object>> items = new ArrayList<>();
             for (Map<String, Object> ri : rawItems) {
                 Map<String, Object> item = new LinkedHashMap<>();
-                item.put("title", ri.get("product_title"));
+                item.put("title", getFlexKey(ri, "product_title", "productTitle"));
                 item.put("quantity", ri.get("quantity"));
-                item.put("price", ri.get("unit_price"));
-                item.put("image", ri.get("image_url"));
+                item.put("price", getFlexKey(ri, "unit_price", "unitPrice"));
+                item.put("image", getFlexKey(ri, "image_url", "imageUrl"));
                 item.put("size", ri.get("size"));
                 items.add(item);
             }
@@ -440,9 +435,49 @@ public class HomeController {
         model.addAttribute("authToken", session.getAttribute("auth_token"));
     }
 
+    /**
+     * Safely extract an int from a map value, avoiding NullPointerException on unboxing.
+     */
+    private int safeInt(Map<String, Object> map, String key, int defaultValue) {
+        Object val = map.get(key);
+        if (val instanceof Number) return ((Number) val).intValue();
+        if (val instanceof String) {
+            try { return Integer.parseInt((String) val); } catch (NumberFormatException ignored) {}
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Safely extract a String from a map value, avoiding ClassCastException.
+     */
+    private String safeString(Map<String, Object> map, String key, String defaultValue) {
+        Object val = map.get(key);
+        if (val instanceof String) return (String) val;
+        if (val != null) return String.valueOf(val);
+        return defaultValue;
+    }
+
+    /**
+     * Safely cast an object to Map, returning null if not a Map.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> safeMap(Object obj) {
+        return obj instanceof Map ? (Map<String, Object>) obj : null;
+    }
+
+    /**
+     * Safely retrieve the user map from session, guarding against Redis deserialization issues.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getSessionUser(HttpSession session) {
+        Object user = session.getAttribute("user");
+        return user instanceof Map ? (Map<String, Object>) user : null;
+    }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> getList(Map<String, Object> result, String key) {
-        Map<String, Object> data = (Map<String, Object>) result.get("data");
+        Object rawData = result.get("data");
+        Map<String, Object> data = rawData instanceof Map ? (Map<String, Object>) rawData : null;
         if (data == null) return List.of();
         Object list = data.get(key);
         return list instanceof List ? (List<Map<String, Object>>) list : List.of();
@@ -451,6 +486,7 @@ public class HomeController {
     /**
      * Parse JSON-encoded string values in a product map into proper objects.
      * The product API returns some fields (productDetails, deliveryOptions, etc.) as JSON strings.
+     * On parse failure, wraps raw strings in a fallback map to prevent Thymeleaf SpEL errors.
      */
     private void parseJsonStringFields(Map<String, Object> data) {
         if (data == null) return;
@@ -463,8 +499,20 @@ public class HomeController {
                 if ((str.startsWith("{") || str.startsWith("[")) && str.length() > 1) {
                     try {
                         data.put(field, objectMapper.readValue(str, Object.class));
-                    } catch (JsonProcessingException ignored) {
-                        // leave as string if not valid JSON
+                    } catch (JsonProcessingException e) {
+                        // Wrap raw string in a fallback structure to prevent Thymeleaf SpEL errors
+                        // on nested access like product['productDetails']['description']
+                        if (field.equals("productDetails")) {
+                            Map<String, Object> fallback = new HashMap<>();
+                            fallback.put("description", str);
+                            data.put(field, fallback);
+                        }
+                        // For list-type fields, replace with empty list to prevent character iteration
+                        if (field.equals("sizes") || field.equals("deliveryOptions") ||
+                                field.equals("specifications") || field.equals("whatCustomersSaid") ||
+                                field.equals("offers")) {
+                            data.put(field, List.of());
+                        }
                     }
                 }
             }
@@ -481,5 +529,14 @@ public class HomeController {
     private Map<String, Object> getDataMap(Map<String, Object> result) {
         Object data = result.get("data");
         return data instanceof Map ? (Map<String, Object>) data : Map.of();
+    }
+
+    /**
+     * Get a value from a map trying both snake_case and camelCase keys.
+     * Handles the mismatch between order-service response format and frontend expectations.
+     */
+    private Object getFlexKey(Map<String, Object> map, String snakeCase, String camelCase) {
+        Object val = map.get(snakeCase);
+        return val != null ? val : map.get(camelCase);
     }
 }
