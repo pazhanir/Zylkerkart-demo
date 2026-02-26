@@ -11,7 +11,8 @@ set -euo pipefail
 TAG="${IMAGE_TAG:-latest}"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PUSH_TO_HUB=false
-REGISTRY="zylkerkart"
+PULL_ONLY=false
+REGISTRY="impazhani"
 
 # Multi-arch platforms
 MULTI_PLATFORMS="linux/amd64,linux/arm64"
@@ -25,49 +26,66 @@ echo "║     ZylkerKart — Building All Multi-Arch Docker Images      ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
-# ── Ask: local build only or build + push to Docker Hub ──
-echo "How would you like to build?"
+# ── Ask: local build / push / pull ──
+echo "How would you like to proceed?"
 echo "  1) Build locally only (loads to local Docker)"
 echo "  2) Build and push to Docker Hub (multi-arch manifest)"
-read -rp "Enter choice [1/2]: " BUILD_CHOICE
+echo "  3) Pull pre-built images from Docker Hub"
+read -rp "Enter choice [1/2/3]: " BUILD_CHOICE
 echo ""
 
-if [ "$BUILD_CHOICE" = "2" ]; then
-    PUSH_TO_HUB=true
+case "$BUILD_CHOICE" in
+    2)
+        PUSH_TO_HUB=true
+        read -rp "🐳 Docker Hub Registry ID [${REGISTRY}]: " input_reg
+        REGISTRY="${input_reg:-$REGISTRY}"
+        echo ""
+        echo "▶ Logging in to Docker Hub..."
+        if ! docker login; then
+            echo "❌ Docker login failed. Aborting."
+            exit 1
+        fi
+        echo "  ✅ Docker login successful"
+        echo ""
+        ;;
+    3)
+        PULL_ONLY=true
+        read -rp "🐳 Docker Hub Registry ID to pull from [${REGISTRY}]: " input_reg
+        REGISTRY="${input_reg:-$REGISTRY}"
+        echo ""
+        ;;
+    1|*)
+        read -rp "🐳 Image registry prefix [${REGISTRY}]: " input_reg
+        REGISTRY="${input_reg:-$REGISTRY}"
+        echo ""
+        ;;
+esac
 
-    # Ask for Docker Hub registry ID (username/org)
-    read -rp "🐳 Enter your Docker Hub Registry ID (username/org): " REGISTRY
-    if [ -z "$REGISTRY" ]; then
-        echo "❌ Docker Hub Registry ID cannot be empty. Aborting."
-        exit 1
+# ── Skip buildx setup when pulling ──
+if [ "$PULL_ONLY" = false ]; then
+    echo "▶ Setting up Docker Buildx builder..."
+    if ! docker buildx inspect "${BUILDX_BUILDER}" > /dev/null 2>&1; then
+        docker buildx create --name "${BUILDX_BUILDER}" --driver docker-container --bootstrap
+        echo "  ✅ Created buildx builder: ${BUILDX_BUILDER}"
+    else
+        echo "  ✅ Using existing buildx builder: ${BUILDX_BUILDER}"
     fi
-    echo ""
-
-    # Docker login
-    echo "▶ Logging in to Docker Hub..."
-    if ! docker login; then
-        echo "❌ Docker login failed. Aborting."
-        exit 1
-    fi
-    echo "  ✅ Docker login successful"
+    docker buildx use "${BUILDX_BUILDER}"
     echo ""
 fi
 
-# ── Ensure buildx builder exists ──
-echo "▶ Setting up Docker Buildx builder..."
-if ! docker buildx inspect "${BUILDX_BUILDER}" > /dev/null 2>&1; then
-    docker buildx create --name "${BUILDX_BUILDER}" --driver docker-container --bootstrap
-    echo "  ✅ Created buildx builder: ${BUILDX_BUILDER}"
+if [ "$PULL_ONLY" = true ]; then
+    MODE="pull"
+elif [ "$PUSH_TO_HUB" = true ]; then
+    MODE="build+push"
 else
-    echo "  ✅ Using existing buildx builder: ${BUILDX_BUILDER}"
+    MODE="build-local"
 fi
-docker buildx use "${BUILDX_BUILDER}"
-echo ""
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║  Registry   : ${REGISTRY}"
 echo "║  Tag        : ${TAG}"
-echo "║  Push       : ${PUSH_TO_HUB}"
+echo "║  Mode       : ${MODE}"
 echo "║  Multi-Arch : ${MULTI_PLATFORMS}"
 echo "║  Auth-Only  : ${AUTH_PLATFORMS} (x86_64 profiler)"
 echo "╚══════════════════════════════════════════════════════════════╝"
@@ -75,7 +93,7 @@ echo ""
 
 # service-name:build-context
 SERVICES=(
-    "db:db"
+    "mysqlb:mysql"
     "product-service:services/product-service"
     "order-service:services/order-service"
     "search-service:services/search-service"
@@ -98,19 +116,30 @@ for entry in "${SERVICES[@]}"; do
     fi
 
     echo "────────────────────────────────────────────────────────────────"
-    echo "▶ Building ${image}"
-    echo "  Context   : ${path}"
-    echo "  Platforms : ${platforms}"
+    if [ "$PULL_ONLY" = true ]; then
+        echo "▶ Pulling ${image}"
+    else
+        echo "▶ Building ${image}"
+        echo "  Context   : ${path}"
+        echo "  Platforms : ${platforms}"
+    fi
     echo "────────────────────────────────────────────────────────────────"
 
-    BUILD_ARGS=(
-        --platform "${platforms}"
-        -t "${image}"
-        "${ROOT_DIR}/${path}"
-    )
-
-    if [ "$PUSH_TO_HUB" = true ]; then
+    if [ "$PULL_ONLY" = true ]; then
+        # Pull pre-built image from Docker Hub
+        if docker pull "${image}"; then
+            echo "✅ ${image} pulled"
+        else
+            echo "❌ ${image} FAILED"
+            FAILED+=("${name}")
+        fi
+    elif [ "$PUSH_TO_HUB" = true ]; then
         # Build and push multi-arch manifest directly
+        BUILD_ARGS=(
+            --platform "${platforms}"
+            -t "${image}"
+            "${ROOT_DIR}/${path}"
+        )
         if docker buildx build --push "${BUILD_ARGS[@]}"; then
             echo "✅ ${image} built & pushed (${platforms})"
         else
@@ -120,6 +149,11 @@ for entry in "${SERVICES[@]}"; do
     else
         # Local build: --load only works with a single platform, so build
         # for the current host platform and tag it locally
+        BUILD_ARGS=(
+            --platform "${platforms}"
+            -t "${image}"
+            "${ROOT_DIR}/${path}"
+        )
         if docker buildx build --load "${BUILD_ARGS[@]}"; then
             echo "✅ ${image} built locally (${platforms})"
         else

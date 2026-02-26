@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 K8S_DIR="${ROOT_DIR}/k8s"
 SERVICES_DIR="${K8S_DIR}/services"
-REGISTRY="${DOCKER_REGISTRY:-zylkerkart}"
+REGISTRY="${DOCKER_REGISTRY:-impazhani}"
 TAG="${IMAGE_TAG:-latest}"
 SINGLE_SERVICE="${1:-}"
 
