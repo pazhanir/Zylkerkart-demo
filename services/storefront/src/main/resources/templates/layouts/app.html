@@ -621,7 +621,7 @@ function updateCartBadge(count) {
     form.addEventListener('submit', function() {
         var q = input.value.trim();
         if (q.length >= 2) {
-            navigator.sendBeacon('/api/search/log', JSON.stringify({ query: q }));
+            navigator.sendBeacon('/api/search/log', new Blob([JSON.stringify({ query: q })], { type: 'application/json' }));
         }
     });
 })();

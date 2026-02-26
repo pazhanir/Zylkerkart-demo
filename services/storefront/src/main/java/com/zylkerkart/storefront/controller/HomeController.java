@@ -98,6 +98,9 @@ public class HomeController {
         Map<String, Object> product = api.get("product", "/products/" + id);
 
         if (safeInt(product, "status", 0) != 200) {
+            // 404 page uses the layout decorator, so it needs all layout model attributes
+            model.addAttribute("categories", List.of());
+            addSessionAttributes(model, session);
             return "error/404";
         }
 
@@ -148,7 +151,7 @@ public class HomeController {
     /**
      * POST /checkout — Place an order (accepts JSON from frontend JS).
      */
-    @PostMapping("/checkout")
+    @PostMapping(value = "/checkout", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> placeOrder(
             @RequestBody Map<String, Object> payload,
@@ -230,14 +233,14 @@ public class HomeController {
 
     // ─── Cart API Proxies ─────────────────────────────────────────────────
 
-    @PostMapping("/api/cart/add")
+    @PostMapping(value = "/api/cart/add", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Object> apiCartAdd(@RequestBody Map<String, Object> body) {
         Map<String, Object> result = api.post("order", "/cart/add", body);
         return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
-    @GetMapping("/api/cart/count")
+    @GetMapping(value = "/api/cart/count", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> apiCartCount(
             @RequestParam(required = false) String sessionId,
@@ -249,7 +252,7 @@ public class HomeController {
         return ResponseEntity.ok(Map.of("itemCount", itemCount));
     }
 
-    @PutMapping("/api/cart/item")
+    @PutMapping(value = "/api/cart/item", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Object> apiCartUpdate(@RequestBody Map<String, Object> body) {
         String sessionId = safeString(body, "sessionId", "");
@@ -260,7 +263,7 @@ public class HomeController {
         return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
-    @DeleteMapping("/api/cart/item")
+    @DeleteMapping(value = "/api/cart/item", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Object> apiCartRemove(@RequestBody Map<String, Object> body) {
         String sessionId = safeString(body, "sessionId", "");
@@ -272,7 +275,7 @@ public class HomeController {
 
     // ─── Search API Proxies ───────────────────────────────────────────────
 
-    @GetMapping("/api/search/suggestions")
+    @GetMapping(value = "/api/search/suggestions", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Object> apiSearchSuggestions(
             @RequestParam(defaultValue = "") String q,
@@ -282,7 +285,7 @@ public class HomeController {
         return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
-    @GetMapping("/api/search/trending")
+    @GetMapping(value = "/api/search/trending", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Object> apiSearchTrending(
             @RequestParam(defaultValue = "10") String limit) {
@@ -291,7 +294,7 @@ public class HomeController {
         return ResponseEntity.status(safeInt(result, "status", 503)).body(result.get("data"));
     }
 
-    @PostMapping("/api/search/log")
+    @PostMapping(value = "/api/search/log", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Object> apiSearchLog(@RequestBody Map<String, Object> body, HttpSession session) {
         Map<String, Object> logBody = new HashMap<>(body);
@@ -303,7 +306,7 @@ public class HomeController {
 
     // ─── Orders API ───────────────────────────────────────────────────────
 
-    @GetMapping("/api/orders")
+    @GetMapping(value = "/api/orders", produces = "application/json")
     @ResponseBody
     public ResponseEntity<Object> apiOrders(
             @RequestParam(defaultValue = "1") int page,
@@ -417,7 +420,7 @@ public class HomeController {
 
     // ─── Health Check ─────────────────────────────────────────────────────
 
-    @GetMapping("/health")
+    @GetMapping(value = "/health", produces = "application/json")
     @ResponseBody
     public Map<String, Object> health() {
         return Map.of(
