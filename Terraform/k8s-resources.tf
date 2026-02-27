@@ -1497,6 +1497,10 @@ resource "kubernetes_config_map" "zylkerkart_config_monitoring" {
     S247_LICENSE_KEY = var.site24x7_license_key
     # ... same keys as your zylkerkart namespace configmap
   }
+
+  depends_on = [
+    kubernetes_namespace.monitoring
+  ]
 }
 # ════════════════════════════════════════════════════════════════════════════
 # Step 8: Site24x7 Go APM DaemonSet (conditional on license key)
