@@ -18,6 +18,6 @@ node_count         = 3
 # App
 docker_registry      = "impazhani"
 image_tag            = "latest"
-site24x7_license_key = "us_81e5d47d355eb1705575884aa2c59da7"   # Set to enable APM
+site24x7_license_key = ""   # Set to enable APM
 mysql_root_password  = "ZylkerKart@2024"
 jwt_secret           = "ZylkerKart-Super-Secret-JWT-Key-2024-Must-Be-At-Least-32-Chars"
