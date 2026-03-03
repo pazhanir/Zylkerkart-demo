@@ -4,6 +4,7 @@ FROM python:3.11-slim AS builder
 WORKDIR /app
 
 COPY requirements.txt .
+COPY chaos-sdk/ ./chaos-sdk/
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Stage 2: Runtime ─────────────────────────────────────────
@@ -22,6 +23,9 @@ COPY app/ ./app/
 
 ENV PORT=8084
 ENV PYTHONUNBUFFERED=1
+ENV CHAOS_SDK_ENABLED=true
+ENV CHAOS_SDK_APP_NAME=payment-service
+ENV CHAOS_SDK_CONFIG_DIR=/var/site24x7-labs/faults
 
 USER appuser
 

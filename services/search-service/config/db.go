@@ -9,12 +9,18 @@ import (
 	"strconv"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
+
+	chaos "github.com/pazhanir/site24x7-labs/sdks/go"
+	"github.com/pazhanir/site24x7-labs/sdks/go/fault"
 )
 
 var DB *sql.DB
 var RDB *redis.Client
+
+// ChaosEngine is set by main.go after InitChaos; used by InitDB/InitRedis.
+var ChaosEngine *chaos.Engine
 
 // GetEnv retrieves an environment variable or returns a default value
 func GetEnv(key, defaultVal string) string {
@@ -44,8 +50,15 @@ func InitDB() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci",
 		user, pass, host, port, dbName)
 
+	// Use chaos-wrapped MySQL driver if engine is available
+	driverName := "mysql"
+	if ChaosEngine != nil {
+		fault.WrapDriver("mysql", &mysql.MySQLDriver{}, ChaosEngine)
+		driverName = "chaos-mysql"
+	}
+
 	var err error
-	DB, err = sql.Open("mysql", dsn)
+	DB, err = sql.Open(driverName, dsn)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -83,6 +96,12 @@ func InitRedis() {
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 3 * time.Second,
 	})
+
+	// Add chaos Redis hook if engine is available
+	if ChaosEngine != nil {
+		RDB.AddHook(fault.NewRedisHook(ChaosEngine))
+		log.Println("[chaos-sdk] Redis hook installed")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

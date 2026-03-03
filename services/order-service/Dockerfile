@@ -3,6 +3,9 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Copy Chaos SDK (local dependency, not published to npm)
+COPY chaos-sdk/ ./chaos-sdk/
+
 # Copy package files
 COPY package*.json ./
 
@@ -19,6 +22,9 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Copy node_modules from builder
 COPY --from=builder /app/node_modules ./node_modules
+
+# Copy Chaos SDK (needed for the symlink in node_modules)
+COPY --from=builder /app/chaos-sdk ./chaos-sdk
 
 # Copy application source
 COPY package*.json ./

@@ -11,7 +11,7 @@
     </h2>
 
     <div class="product-grid">
-        <th:block th:with="items=${products['products'] != null ? products['products'] : products}">
+        <th:block th:with="items=${products['products'] != null ? products['products'] : {}}">
             <a th:each="product : ${items}" th:href="'/products/' + ${product['productId']}" class="product-card" style="text-decoration: none; color: inherit;">
                 <img th:if="${product['images'] != null and !product['images'].isEmpty()}"
                      th:src="${product['images'][0]}" th:alt="${product['productDescription']}" loading="lazy">
@@ -33,7 +33,7 @@
     </div>
 
     <!-- Pagination -->
-    <th:block th:if="${products['totalPages'] != null and products['totalPages'] > 1}">
+    <th:block th:if="${totalPages > 1}">
         <style>
             .pagination-wrap { text-align: center; margin: 30px 0; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; }
             .pagination-link { display: inline-block; padding: 8px 14px; border-radius: 4px; text-decoration: none; min-width: 40px; text-align: center; }
@@ -44,10 +44,10 @@
             }
         </style>
         <div class="pagination-wrap">
-            <th:block th:each="i : ${#numbers.sequence(0, products['totalPages'] - 1)}">
+            <th:block th:each="i : ${#numbers.sequence(0, totalPages - 1)}">
                 <a th:href="'/products?page=' + ${i} + '&amp;category=' + ${filters['category'] ?: ''} + '&amp;search=' + ${filters['search'] ?: ''}"
                    class="pagination-link"
-                   th:classappend="${i == (filters['page'] ?: 0) ? 'pagination-link--active' : 'pagination-link--inactive'}"
+                   th:classappend="${i == currentPage ? 'pagination-link--active' : 'pagination-link--inactive'}"
                    th:text="${i + 1}">1</a>
             </th:block>
         </div>

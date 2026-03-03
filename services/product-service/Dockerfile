@@ -1,6 +1,10 @@
 # ---- Stage 1: Build ----
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
+
+# Copy pre-built Chaos SDK JARs into Maven local repo (not published to Maven Central)
+COPY chaos-sdk/ /root/.m2/repository/com/site24x7/labs/
+
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 COPY src ./src

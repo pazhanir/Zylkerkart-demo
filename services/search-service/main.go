@@ -8,12 +8,30 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	chaos "github.com/pazhanir/site24x7-labs/sdks/go"
+	"github.com/pazhanir/site24x7-labs/sdks/go/fault"
+	ginmw "github.com/pazhanir/site24x7-labs/sdks/go/gin"
+
 	"zylkerkart/search-service/config"
 	"zylkerkart/search-service/handlers"
 )
 
 func main() {
-	// Initialize database and Redis
+	// Initialize Site24x7 Labs Chaos SDK
+	chaosInstance, err := chaos.InitChaos(
+		config.GetEnv("CHAOS_SDK_APP_NAME", "search-service"),
+		chaos.WithFramework("gin", "1.10.0"),
+	)
+	if err != nil {
+		log.Printf("[chaos-sdk] Warning: %v", err)
+	} else {
+		config.ChaosEngine = chaosInstance.Engine
+		defer chaosInstance.Shutdown()
+		// Install resource fault injector (cpu_burn, memory_pressure, etc.)
+		fault.NewResourceFaultInjector(chaosInstance.Engine).Install()
+	}
+
+	// Initialize database and Redis (uses ChaosEngine if set)
 	config.InitDB()
 	defer config.DB.Close()
 	config.InitRedis()
@@ -24,6 +42,11 @@ func main() {
 	}
 
 	r := gin.Default()
+
+	// Chaos SDK middleware (inbound HTTP faults)
+	if chaosInstance != nil {
+		r.Use(ginmw.ChaosMiddleware(chaosInstance.Engine))
+	}
 
 	// CORS
 	r.Use(cors.New(cors.Config{

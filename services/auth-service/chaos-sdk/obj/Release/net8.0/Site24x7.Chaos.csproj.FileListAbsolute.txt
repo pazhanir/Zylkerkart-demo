@@ -1,0 +1,12 @@
+/src/chaos-sdk/bin/Release/net8.0/Site24x7.Chaos.deps.json
+/src/chaos-sdk/bin/Release/net8.0/Site24x7.Chaos.dll
+/src/chaos-sdk/bin/Release/net8.0/Site24x7.Chaos.pdb
+/src/chaos-sdk/obj/Release/net8.0/Site24x7.Chaos.csproj.AssemblyReference.cache
+/src/chaos-sdk/obj/Release/net8.0/Site24x7.Chaos.GeneratedMSBuildEditorConfig.editorconfig
+/src/chaos-sdk/obj/Release/net8.0/Site24x7.Chaos.AssemblyInfoInputs.cache
+/src/chaos-sdk/obj/Release/net8.0/Site24x7.Chaos.AssemblyInfo.cs
+/src/chaos-sdk/obj/Release/net8.0/Site24x7.Chaos.csproj.CoreCompileInputs.cache
+/src/chaos-sdk/obj/Release/net8.0/Site24x7.Chaos.dll
+/src/chaos-sdk/obj/Release/net8.0/refint/Site24x7.Chaos.dll
+/src/chaos-sdk/obj/Release/net8.0/Site24x7.Chaos.pdb
+/src/chaos-sdk/obj/Release/net8.0/ref/Site24x7.Chaos.dll

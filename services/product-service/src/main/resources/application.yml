@@ -51,3 +51,9 @@ logging:
   level:
     com.zylkerkart.product: INFO
     org.hibernate.SQL: WARN
+
+# Site24x7 Labs Chaos SDK
+chaos:
+  enabled: ${CHAOS_SDK_ENABLED:true}
+  app-name: ${CHAOS_SDK_APP_NAME:product-service}
+  config-file: ${CHAOS_SDK_CONFIG_DIR:/var/site24x7-labs/faults}/${CHAOS_SDK_APP_NAME:product-service}.json

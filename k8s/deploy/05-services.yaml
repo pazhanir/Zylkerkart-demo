@@ -23,7 +23,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: product-service
-          image: impazhani/product-service:latest
+          image: impazhani/product-service:chaos
           ports:
             - containerPort: 8081
           env:
@@ -45,6 +45,16 @@ spec:
               value: "redis"
             - name: REDIS_PORT
               value: "6379"
+            # --- Chaos SDK ---
+            - name: CHAOS_SDK_ENABLED
+              value: "true"
+            - name: CHAOS_SDK_APP_NAME
+              value: "product-service"
+            - name: CHAOS_SDK_CONFIG_DIR
+              value: "/var/site24x7-labs/faults"
+          volumeMounts:
+            - name: chaos-config
+              mountPath: /var/site24x7-labs/faults
           readinessProbe:
             httpGet:
               path: /health
@@ -64,6 +74,11 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
+      volumes:
+        - name: chaos-config
+          hostPath:
+            path: /var/site24x7-labs/faults
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
@@ -102,7 +117,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: order-service
-          image: impazhani/order-service:latest
+          image: impazhani/order-service:chaos
           ports:
             - containerPort: 8082
           env:
@@ -138,6 +153,16 @@ spec:
                 configMapKeyRef:
                   name: zylkerkart-config
                   key: AUTH_SERVICE_URL
+            # --- Chaos SDK ---
+            - name: CHAOS_SDK_ENABLED
+              value: "true"
+            - name: CHAOS_SDK_APP_NAME
+              value: "order-service"
+            - name: CHAOS_SDK_CONFIG_DIR
+              value: "/var/site24x7-labs/faults"
+          volumeMounts:
+            - name: chaos-config
+              mountPath: /var/site24x7-labs/faults
           readinessProbe:
             httpGet:
               path: /health
@@ -157,6 +182,11 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "300m"
+      volumes:
+        - name: chaos-config
+          hostPath:
+            path: /var/site24x7-labs/faults
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
@@ -195,7 +225,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: search-service
-          image: impazhani/search-service:latest
+          image: impazhani/search-service:chaos
           ports:
             - containerPort: 8083
           env:
@@ -221,6 +251,16 @@ spec:
               value: "redis"
             - name: REDIS_PORT
               value: "6379"
+            # --- Chaos SDK ---
+            - name: CHAOS_SDK_ENABLED
+              value: "true"
+            - name: CHAOS_SDK_APP_NAME
+              value: "search-service"
+            - name: CHAOS_SDK_CONFIG_DIR
+              value: "/var/site24x7-labs/faults"
+          volumeMounts:
+            - name: chaos-config
+              mountPath: /var/site24x7-labs/faults
           readinessProbe:
             httpGet:
               path: /health
@@ -240,6 +280,11 @@ spec:
             limits:
               memory: "320Mi"
               cpu: "200m"
+      volumes:
+        - name: chaos-config
+          hostPath:
+            path: /var/site24x7-labs/faults
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
@@ -278,7 +323,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: payment-service
-          image: impazhani/payment-service:latest
+          image: impazhani/payment-service:chaos
           command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8084"]
           ports:
             - containerPort: 8084
@@ -305,6 +350,16 @@ spec:
               value: "redis"
             - name: REDIS_PORT
               value: "6379"
+            # --- Chaos SDK ---
+            - name: CHAOS_SDK_ENABLED
+              value: "true"
+            - name: CHAOS_SDK_APP_NAME
+              value: "payment-service"
+            - name: CHAOS_SDK_CONFIG_DIR
+              value: "/var/site24x7-labs/faults"
+          volumeMounts:
+            - name: chaos-config
+              mountPath: /var/site24x7-labs/faults
           readinessProbe:
             httpGet:
               path: /health
@@ -324,6 +379,11 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "300m"
+      volumes:
+        - name: chaos-config
+          hostPath:
+            path: /var/site24x7-labs/faults
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
@@ -365,7 +425,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: auth-service
-          image: impazhani/auth-service:latest
+          image: impazhani/auth-service:chaos
           ports:
             - containerPort: 8085
           env:
@@ -396,6 +456,16 @@ spec:
               value: "15"
             - name: JWT_REFRESH_EXPIRY_DAYS
               value: "7"
+            # --- Chaos SDK ---
+            - name: CHAOS_SDK_ENABLED
+              value: "true"
+            - name: CHAOS_SDK_APP_NAME
+              value: "auth-service"
+            - name: CHAOS_SDK_CONFIG_DIR
+              value: "/var/site24x7-labs/faults"
+          volumeMounts:
+            - name: chaos-config
+              mountPath: /var/site24x7-labs/faults
           readinessProbe:
             httpGet:
               path: /health
@@ -415,6 +485,11 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "300m"
+      volumes:
+        - name: chaos-config
+          hostPath:
+            path: /var/site24x7-labs/faults
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
@@ -453,7 +528,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: storefront
-          image: impazhani/storefront:latest
+          image: impazhani/storefront:chaos
           ports:
             - containerPort: 80
           env:
@@ -492,6 +567,16 @@ spec:
                 configMapKeyRef:
                   name: zylkerkart-config
                   key: AUTH_SERVICE_URL
+            # --- Chaos SDK ---
+            - name: CHAOS_SDK_ENABLED
+              value: "true"
+            - name: CHAOS_SDK_APP_NAME
+              value: "storefront"
+            - name: CHAOS_SDK_CONFIG_DIR
+              value: "/var/site24x7-labs/faults"
+          volumeMounts:
+            - name: chaos-config
+              mountPath: /var/site24x7-labs/faults
           startupProbe:
             httpGet:
               path: /health
@@ -518,6 +603,11 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "400m"
+      volumes:
+        - name: chaos-config
+          hostPath:
+            path: /var/site24x7-labs/faults
+            type: DirectoryOrCreate
 ---
 # ClusterIP service for internal reference
 apiVersion: v1

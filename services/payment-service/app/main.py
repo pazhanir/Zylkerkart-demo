@@ -41,6 +41,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Site24x7 Labs Chaos SDK
+try:
+    from site24x7_chaos.fastapi import init_chaos
+
+    init_chaos(
+        app,
+        app_name=os.getenv("CHAOS_SDK_APP_NAME", "payment-service"),
+        config_dir=os.getenv("CHAOS_SDK_CONFIG_DIR", "/var/site24x7-labs/faults"),
+        enabled=os.getenv("CHAOS_SDK_ENABLED", "true").lower() != "false",
+    )
+except Exception as e:
+    logger.warning("Failed to initialize Chaos SDK: %s", e)
+
 
 # Routes
 app.include_router(payment.router)

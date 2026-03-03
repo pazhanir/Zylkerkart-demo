@@ -1,15 +1,23 @@
 # ── Stage 1: Build ────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 COPY AuthService.csproj ./
+COPY chaos-sdk/ ./chaos-sdk/
 RUN dotnet restore
 
-COPY . .
+# Copy app source files only (not chaos-sdk again — already restored above)
+COPY appsettings.json ./
+COPY Program.cs ./
+COPY Controllers/ ./Controllers/
+COPY Data/ ./Data/
+COPY DTOs/ ./DTOs/
+COPY Models/ ./Models/
+COPY Services/ ./Services/
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
 # ── Stage 2: Runtime ─────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:8.0
 
 WORKDIR /app
 
@@ -21,6 +29,9 @@ COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://+:8085
 ENV PORT=8085
+ENV CHAOS_SDK_ENABLED=true
+ENV CHAOS_SDK_APP_NAME=auth-service
+ENV CHAOS_SDK_CONFIG_DIR=/var/site24x7-labs/faults
 
 USER appuser
 

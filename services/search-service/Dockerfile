@@ -6,6 +6,9 @@ WORKDIR /app
 # Install git for module downloads
 RUN apk add --no-cache git
 
+# Copy Chaos SDK source (local dependency, not published to Go proxy)
+COPY chaos-sdk/ ./chaos-sdk/
+
 # Copy all source code
 COPY . .
 

@@ -66,11 +66,11 @@
                     <div class="price-row">
                         <span class="price" th:text="${product['finalPrice'] ?: '$0'}">$0</span>
                         <span class="original-price"
-                              th:if="${product['initialPrice'] != null and product['discount'] != null and product['discount'] > 0}"
+                              th:if="${product['initialPrice'] != null and product['discount'] != null and product['discount'] > 0 and product['discount'] < 100}"
                               th:text="'$' + ${product['initialPrice'] * 100 / (100 - product['discount'])}">$100</span>
                     </div>
                     <div class="save-text"
-                         th:if="${product['discount'] != null and product['discount'] > 0 and product['initialPrice'] != null}"
+                         th:if="${product['discount'] != null and product['discount'] > 0 and product['discount'] < 100 and product['initialPrice'] != null}"
                          th:text="'Save - $' + ${product['initialPrice'] * 100 / (100 - product['discount']) - product['initialPrice']}">Save</div>
                 </div>
             </a>
@@ -165,11 +165,11 @@
                     <div class="price-row">
                         <span class="price" th:text="${product['finalPrice'] ?: '$0'}">$0</span>
                         <span class="original-price"
-                              th:if="${product['initialPrice'] != null and product['discount'] != null and product['discount'] > 0}"
+                              th:if="${product['initialPrice'] != null and product['discount'] != null and product['discount'] > 0 and product['discount'] < 100}"
                               th:text="'$' + ${product['initialPrice'] * 100 / (100 - product['discount'])}">$100</span>
                     </div>
                     <div class="save-text"
-                         th:if="${product['discount'] != null and product['discount'] > 0 and product['initialPrice'] != null}"
+                         th:if="${product['discount'] != null and product['discount'] > 0 and product['discount'] < 100 and product['initialPrice'] != null}"
                          th:text="'Save - $' + ${product['initialPrice'] * 100 / (100 - product['discount']) - product['initialPrice']}">Save</div>
                 </div>
             </a>

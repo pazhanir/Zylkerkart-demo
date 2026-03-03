@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Site24x7.Chaos.Extensions;
 using ZylkerKart.AuthService.Data;
 using ZylkerKart.AuthService.Services;
 
@@ -55,6 +56,26 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 
+// ─── Chaos SDK ──────────────────────────────────────────────
+var chaosEnabled = Environment.GetEnvironmentVariable("CHAOS_SDK_ENABLED")?.ToLower() != "false";
+if (chaosEnabled)
+{
+    try
+    {
+        builder.Services.AddSite24x7Chaos(options =>
+        {
+            options.AppName = Environment.GetEnvironmentVariable("CHAOS_SDK_APP_NAME") ?? "auth-service";
+            options.ConfigDir = Environment.GetEnvironmentVariable("CHAOS_SDK_CONFIG_DIR") ?? "/var/site24x7-labs/faults";
+            options.Enabled = true;
+        });
+        Console.WriteLine("Chaos SDK registered");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Failed to register Chaos SDK: {ex.Message}");
+    }
+}
+
 var app = builder.Build();
 
 // Retry DB connection
@@ -78,6 +99,21 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors();
+
+// Site24x7 Labs Chaos SDK middleware (before auth so faults can intercept early)
+if (chaosEnabled)
+{
+    try
+    {
+        app.UseSite24x7Chaos();
+        Console.WriteLine("Chaos SDK middleware enabled");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Failed to enable Chaos SDK middleware: {ex.Message}");
+    }
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
